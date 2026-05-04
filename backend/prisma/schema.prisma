@@ -1,6 +1,3 @@
-// -------------------------------------
-// 1. CONFIGURATION
-// -------------------------------------
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,9 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// -------------------------------------
-// 2. ENUMS
-// -------------------------------------
 enum PlanType {
   SINGLE_DAY
   WEEKLY
@@ -26,98 +20,175 @@ enum MealType {
   SNACK
 }
 
-// -------------------------------------
-// 3. CORE USER & PANTRY MODELS
-// -------------------------------------
-model User {
-  id           String @id @default(uuid())
-  email        String @unique
-  passwordHash String
+enum RecipeSource {
+  SPOONACULAR
+  AI_GENERATED
+  USER_CREATED
+}
 
-  // Relations
-  pantryItems      PantryItem[]
-  nutritionalGoals NutritionalGoal?
-  mealPlans        MealPlan[]
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pantryItems     PantryItem[]
+  nutritionalGoal NutritionalGoal?
+  dietaryProfile  DietaryProfile?
+  mealPlans       MealPlan[]
+  authoredRecipes Recipe[]         @relation("RecipeAuthor")
+}
+
+model DietaryProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  diets               String[] @default([])
+  intolerances        String[] @default([])
+  allergies           String[] @default([])
+  excludedIngredients String[] @default([])
+  preferredCuisines   String[] @default([])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model NutritionalGoal {
-  id     String @id @default(uuid())
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String @unique
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  dailyCalories       Int
+  dailyProtein        Int
+  dailyCarbs          Int
+  dailyFat            Int
+  calorieTolerancePct Int      @default(10)
+  macroTolerancePct   Int      @default(15)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  // Stored as absolute targets (e.g., 2000 kcal, 150g protein)
-  dailyCalories Int
-  dailyProtein  Int
-  dailyCarbs    Int
-  dailyFat      Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Ingredient {
-  id            String  @id @default(uuid())
-  spoonacularId Int     @unique
-  name          String  @unique
-  aisle         String? // Replaces the strict Enum
-  imageUrl      String? // Spoonacular provides ingredient images
+  id            String   @id @default(uuid())
+  spoonacularId Int?     @unique
+  name          String   @unique
+  aisle         String?
+  imageUrl      String?
+  defaultUnit   String?
+  calories      Float?
+  proteins      Float?
+  carbohydrates Float?
+  fats          Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  // Core macros per 100g (kept as floats for easy SQL filtering)
-  calories      Float
-  proteins      Float
-  carbohydrates Float
-  fats          Float
-
-  pantryItems PantryItem[]
+  pantryItems       PantryItem[]
+  recipeIngredients RecipeIngredient[]
 }
 
 model PantryItem {
-  id           String     @id @default(uuid())
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
-  ingredientId String
+  id                 String    @id @default(uuid())
+  userId             String
+  ingredientId       String
+  quantity           Float
+  unit               String
+  normalizedQuantity Float?
+  normalizedUnit     String?
+  purchasedAt        DateTime  @default(now())
+  expirationDate     DateTime?
+  note               String?
+  isStaple           Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  quantity       Float
-  unit           String // e.g., "grams", "liters", "pieces"
-  expirationDate DateTime?
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@index([userId, expirationDate])
+  @@index([userId, ingredientId])
 }
 
-// -------------------------------------
-// 4. MEAL PLANNING & RECIPES
-// -------------------------------------
 model Recipe {
-  id               String  @id @default(uuid())
-  spoonacularId    Int     @unique
-  name             String
-  imageUrl         String?
-  sourceUrl        String?
-  expectedDuration Int // readyInMinutes from Spoonacular
-  servings         Int?
-  nutritionalInfo  Json // Full macro breakdown cache
+  id              String       @id @default(uuid())
+  sourceType      RecipeSource
+  spoonacularId   Int?         @unique
+  authorId        String?
+  title           String
+  summary         String?
+  instructions    Json?
+  imageUrl        String?
+  sourceUrl       String?
+  readyInMinutes  Int?
+  servings        Int?
+  nutritionalInfo Json?
+  tags            String[]     @default([])
+  diets           String[]     @default([])
+  cuisines        String[]     @default([])
+  dishTypes       String[]     @default([])
+  isPublic        Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
+  author          User?              @relation("RecipeAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   mealPlanEntries MealPlanEntry[]
+  ingredients     RecipeIngredient[]
+
+  @@index([sourceType])
+  @@index([authorId])
+}
+
+model RecipeIngredient {
+  id           String   @id @default(uuid())
+  recipeId     String
+  ingredientId String?
+  displayName  String
+  quantity     Float?
+  unit         String?
+  originalText String?
+  isOptional   Boolean  @default(false)
+  sortOrder    Int?
+  createdAt    DateTime @default(now())
+
+  recipe     Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: SetNull)
+
+  @@index([recipeId])
+  @@index([ingredientId])
 }
 
 model MealPlan {
-  id     String @id @default(uuid())
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String
+  id          String   @id @default(uuid())
+  userId      String
+  planType    PlanType @default(WEEKLY)
+  isStrict    Boolean  @default(false)
+  startDate   DateTime
+  endDate     DateTime
+  notes       String?
+  generatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  planType  PlanType @default(WEEKLY)
-  isStrict  Boolean  @default(false)
-  startDate DateTime
-  endDate   DateTime
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries MealPlanEntry[]
 
-  entries     MealPlanEntry[]
-  generatedAt DateTime        @default(now())
+  @@index([userId, startDate, endDate])
 }
 
 model MealPlanEntry {
-  id         String   @id @default(uuid())
-  mealPlan   MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
-  mealPlanId String
+  id           String   @id @default(uuid())
+  mealPlanId   String
+  day          DateTime
+  mealType     MealType
+  recipeId     String
+  servings     Int?
+  isLocked     Boolean  @default(false)
+  sourceReason String?
+  createdAt    DateTime @default(now())
 
-  day      DateTime
-  mealType MealType
+  mealPlan MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  recipe   Recipe   @relation(fields: [recipeId], references: [id])
 
-  recipe   Recipe @relation(fields: [recipeId], references: [id])
-  recipeId String
+  @@unique([mealPlanId, day, mealType])
+  @@index([day])
 }
