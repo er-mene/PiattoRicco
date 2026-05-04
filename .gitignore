@@ -22,5 +22,4 @@ build/
 .DS_Store
 
 # Prisma
-prisma/migrations/*
-!prisma/migrations/
+prisma/migrations/
