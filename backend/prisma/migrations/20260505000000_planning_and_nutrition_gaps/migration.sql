@@ -21,7 +21,7 @@ ADD COLUMN "normalizedQuantity" DOUBLE PRECISION,
 ADD COLUMN "normalizedUnit" TEXT;
 
 -- DropIndex
-DROP INDEX "MealPlanEntry_mealPlanId_day_mealType_key";
+DROP INDEX IF EXISTS "MealPlanEntry_mealPlanId_day_mealType_key";
 
 -- CreateTable
 CREATE TABLE "PantryReservation" (

@@ -1,6 +1,5 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -178,7 +177,6 @@ model MealPlan {
   id          String   @id @default(uuid())
   userId      String
   planType    PlanType @default(WEEKLY)
-  isStrict    Boolean  @default(false)
   startDate   DateTime
   endDate     DateTime
   notes       String?
