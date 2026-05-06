@@ -4,6 +4,8 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -542,6 +544,194 @@ app.post('/api/weekly-plan', async (req, res) => {
   } catch (error) {
     console.error('Error creating weekly plan:', error.message);
     res.status(500).json({ error: 'Failed to create weekly plan', details: error.message });
+  }
+});
+// --- AUTHENTICATION ROUTES ---
+
+// 1. User Registration
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    // Check if the user already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email is already registered' });
+    }
+
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create the user in the database
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        passwordHash: hashedPassword,
+      },
+    });
+
+    res.status(201).json({ message: 'User registered successfully', userId: newUser.id });
+  } catch (error) {
+    console.error('Registration error:', error.message);
+    res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
+// 2. User Login
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    // Find the user by email
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Compare the provided password with the hashed password in DB
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate the JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' } // Token expires in 7 days
+    );
+
+    res.json({ 
+      message: 'Login successful', 
+      token, 
+      user: { id: user.id, email: user.email } 
+    });
+  } catch (error) {
+    console.error('Login error:', error.message);
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+// 3. Save Nutritional Profile
+app.post('/api/profile', async (req, res) => {
+  // Riceviamo i dati dal frontend
+  const { userId, dailyCalories, dailyProtein, dailyCarbs, dailyFat } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
+
+  try {
+    // Upsert: Aggiorna se esiste, crea se non esiste
+    const goal = await prisma.nutritionalGoal.upsert({
+      where: { userId: userId },
+      update: { dailyCalories, dailyProtein, dailyCarbs, dailyFat },
+      create: { userId, dailyCalories, dailyProtein, dailyCarbs, dailyFat }
+    });
+
+    res.status(200).json({ message: 'Profile saved successfully', goal });
+  } catch (error) {
+    console.error('Error saving profile:', error.message);
+    res.status(500).json({ error: 'Failed to save nutritional profile' });
+  }
+});
+// 4. Get Nutritional Profile
+app.get('/api/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Cerca l'obiettivo nutrizionale nel database
+    const goal = await prisma.nutritionalGoal.findUnique({
+      where: { userId: userId }
+    });
+
+    if (!goal) {
+      // Se non esiste ancora, restituiamo un 404 (React userà i valori base)
+      return res.status(404).json({ message: 'Profile not found' });
+    }
+
+    res.status(200).json(goal);
+  } catch (error) {
+    console.error('Error fetching profile:', error.message);
+    res.status(500).json({ error: 'Failed to fetch nutritional profile' });
+  }
+});
+// --- PANTRY ROUTES ---
+
+// 1. Get all ingredients for a user
+app.get('/api/pantry/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const items = await prisma.pantryItem.findMany({
+      where: { userId: userId },
+      include: { ingredient: true }, // Importante: alleghiamo i dati dell'ingrediente!
+      orderBy: { createdAt: 'desc' }
+    });
+    res.status(200).json(items);
+  } catch (error) {
+    console.error('Error fetching pantry:', error);
+    res.status(500).json({ error: 'Failed to fetch pantry items' });
+  }
+});
+
+// 2. Add a new ingredient to pantry
+app.post('/api/pantry', async (req, res) => {
+  try {
+    const { userId, name, quantity, unit } = req.body;
+    
+    if (!userId || !name || !quantity || !unit) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const ingredientName = name.trim().toLowerCase();
+
+    // A. Trova l'ingrediente nel DB generale, o crealo se non esiste
+    const ingredient = await prisma.ingredient.upsert({
+      where: { name: ingredientName },
+      update: {}, // Se esiste, non cambiamo nulla
+      create: { name: ingredientName } // Se non esiste, lo creiamo
+    });
+
+    // B. Aggiungi l'elemento alla dispensa dell'utente
+    const newItem = await prisma.pantryItem.create({
+      data: { 
+        userId: userId, 
+        ingredientId: ingredient.id,
+        quantity: parseFloat(quantity),
+        unit: unit
+      },
+      include: {
+        ingredient: true // Restituiamo il pacchetto completo al frontend
+      }
+    });
+
+    res.status(201).json(newItem);
+  } catch (error) {
+    console.error('Error adding ingredient:', error);
+    res.status(500).json({ error: 'Failed to add ingredient' });
+  }
+});
+
+// 3. Delete an ingredient from pantry
+app.delete('/api/pantry/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.pantryItem.delete({
+      where: { id: id }
+    });
+    res.status(200).json({ message: 'Ingredient deleted' });
+  } catch (error) {
+    console.error('Error deleting ingredient:', error);
+    res.status(500).json({ error: 'Failed to delete ingredient' });
   }
 });
 
