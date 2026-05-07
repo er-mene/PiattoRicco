@@ -734,6 +734,317 @@ app.delete('/api/pantry/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete ingredient' });
   }
 });
+// --- EXTERNAL API ROUTES ---
+
+// Autocomplete Ingredients via Spoonacular
+app.get('/api/ingredients/autocomplete', async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    // Se l'utente ha scritto meno di 2 lettere, non facciamo la chiamata
+    if (!query || query.length < 2) {
+      return res.json([]);
+    }
+
+    const apiKey = process.env.SPOONACULAR_API_KEY;
+    if (!apiKey) {
+      throw new Error("SPOONACULAR_API_KEY is missing in .env");
+    }
+
+    // Chiamiamo Spoonacular per avere i 5 migliori suggerimenti
+    const spoonacularUrl = `https://api.spoonacular.com/food/ingredients/autocomplete?query=${query}&number=5&metaInformation=true&apiKey=${apiKey}`;
+    
+    // Node.js v18+ ha fetch nativo, possiamo usarlo nel backend!
+    const response = await fetch(spoonacularUrl);
+    if (!response.ok) {
+      throw new Error(`Spoonacular API responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.status(200).json(data);
+  } catch (error) {
+    console.error('Error in autocomplete:', error.message);
+    res.status(500).json({ error: 'Failed to fetch suggestions' });
+  }
+});
+// --- MEAL PLANNER ROUTES (MODULO 1, 2 e 4) ---
+
+app.get('/api/planner/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const activePlan = await prisma.mealPlan.findFirst({
+      where: { userId: userId, endDate: { gte: today } },
+      include: {
+        entries: {
+          include: { recipe: true },
+          orderBy: [{ day: 'asc' }, { mealType: 'asc' }]
+        }
+      }
+    });
+
+    if (!activePlan) return res.status(404).json({ message: 'No active plan found' });
+    res.status(200).json(activePlan);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch active meal plan' });
+  }
+});
+
+// Generatore Definitivo 4.0: Pantry-First e Tetris dei Macro Giornalieri
+app.post('/api/planner/generate', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'User ID is required' });
+    const goal = await prisma.nutritionalGoal.findUnique({ where: { userId } });
+    if (!goal) return res.status(400).json({ error: 'Profile incomplete' });
+
+    const pantry = await prisma.pantryItem.findMany({ where: { userId }, include: { ingredient: true } });
+    const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
+    const pantryQuery = pantryNames.join(',');
+
+    const apiKey = process.env.SPOONACULAR_API_KEY;
+    const avgCals = Math.round(goal.dailyCalories / 3);
+    const avgPro = Math.round(goal.dailyProtein / 3);
+    const avgCarbs = Math.round(goal.dailyCarbs / 3);
+    const avgFat = Math.round(goal.dailyFat / 3);
+// 1. SOSTITUISCI SOLO QUESTA FUNZIONE
+    const fetchPool = async (type, count) => {
+      const offset = Math.floor(Math.random() * 20);
+      
+      const baseUrl = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=${count}&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true&offset=${offset}&minCalories=${Math.max(50, avgCals-250)}&maxCalories=${avgCals+300}&minProtein=${Math.max(0, avgPro-15)}&minCarbs=${Math.max(0, avgCarbs-20)}&minFat=${Math.max(0, avgFat-15)}`;
+      
+      const res = await fetch(baseUrl);
+      const data = await res.json();
+      return data.results || [];
+    };
+
+    // Peschiamo un "bacino" di ricette da cui attingere
+    const breakfastPool = await fetchPool('breakfast', 15);
+    const mainCoursePool = await fetchPool('main course', 30);
+
+    // Mettiamo un controllo di sicurezza solo per problemi di rete dell'API
+    if (breakfastPool.length < 7 || mainCoursePool.length < 14) {
+      return res.status(400).json({ error: 'Spoonacular API is busy or out of quota. Please try again in a few seconds!' });
+    }
+    const getPantryScore = (recipe) => {
+      const allIng = [...(recipe.usedIngredients || []), ...(recipe.missedIngredients || []), ...(recipe.extendedIngredients || [])];
+      const uniqueNames = Array.from(new Set(allIng.map(a => a.name.toLowerCase())));
+      return uniqueNames.filter(ingName => pantryNames.some(p => ingName.includes(p) || p.includes(ingName))).length;
+    };
+    breakfastPool.sort((a, b) => getPantryScore(b) - getPantryScore(a));
+    mainCoursePool.sort((a, b) => getPantryScore(b) - getPantryScore(a));
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    await prisma.mealPlan.deleteMany({ where: { userId: userId, endDate: { gte: today } } });
+
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + 6);
+
+    const mealPlan = await prisma.mealPlan.create({
+      data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
+    });
+
+    // Utility per leggere i macro in modo sicuro
+    const getMacro = (recipe, name) => recipe?.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
+
+    let currentDate = new Date(today);
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+    // 2. FASE DI INCASRTRO (TETRIS GIORNALIERO)
+    for (let i = 0; i < days.length; i++) {
+      
+      // Target della giornata intera
+      let remainingCals = goal.dailyCalories;
+      let remainingPro = goal.dailyProtein;
+
+      // A. Scegliamo la Colazione e la rimuoviamo dal pool per non ripeterla
+      const breakfast = breakfastPool.splice(Math.floor(Math.random() * Math.min(3, breakfastPool.length)), 1)[0];
+      remainingCals -= getMacro(breakfast, 'Calories');
+      remainingPro -= getMacro(breakfast, 'Protein');
+
+      // B. Scegliamo il Pranzo
+      const lunch = mainCoursePool.splice(Math.floor(Math.random() * Math.min(5, mainCoursePool.length)), 1)[0];
+      remainingCals -= getMacro(lunch, 'Calories');
+      remainingPro -= getMacro(lunch, 'Protein');
+
+      // C. Scegliamo la Cena: Quella che si avvicina di più ai macro RIMASTI per chiudere la giornata
+      // Ordiniamo il pool rimasto in base a chi ha la differenza minore con le calorie e proteine mancanti
+      mainCoursePool.sort((a, b) => {
+        const diffA = Math.abs(getMacro(a, 'Calories') - remainingCals) + Math.abs(getMacro(a, 'Protein') - remainingPro)*4;
+        const diffB = Math.abs(getMacro(b, 'Calories') - remainingCals) + Math.abs(getMacro(b, 'Protein') - remainingPro)*4;
+        return diffA - diffB;
+      });
+
+      const dinner = mainCoursePool.shift(); // Prendiamo la migliore e la rimuoviamo!
+
+      const dailyMeals = [
+        { type: 'BREAKFAST', data: breakfast },
+        { type: 'LUNCH', data: lunch },
+        { type: 'DINNER', data: dinner }
+      ];
+
+      // Salvataggio nel Database (Uguale a prima, ma con controllo Dispensa infallibile)
+      for (let j = 0; j < 3; j++) {
+        const mealData = dailyMeals[j];
+        const recipeData = mealData.data;
+
+        let used = [];
+        let missed = [];
+        const allIng = [...(recipeData.usedIngredients || []), ...(recipeData.missedIngredients || []), ...(recipeData.extendedIngredients || [])];
+        const uniqueIng = Array.from(new Set(allIng.map(a => a.name))).map(n => allIng.find(a => a.name === n));
+        
+        uniqueIng.forEach(ing => {
+          const ingName = ing.name.toLowerCase();
+          pantryNames.some(p => ingName.includes(p) || p.includes(ingName)) ? used.push(ing.name) : missed.push(ing.name);
+        });
+
+// FIX SALVATAGGIO: Uso corretto della variabile 'recipeData'
+        const recipe = await prisma.recipe.upsert({
+          where: { spoonacularId: recipeData.id },
+          update: {
+            instructions: recipeData.instructions,
+            nutritionalInfo: { 
+              usedIngredients: used, 
+              missedIngredients: missed, 
+              extendedIngredients: recipeData.extendedIngredients 
+            }
+          },
+          create: {
+            sourceType: 'SPOONACULAR',
+            spoonacularId: recipeData.id,
+            title: recipeData.title,
+            imageUrl: recipeData.image,
+            sourceUrl: recipeData.sourceUrl,
+            instructions: recipeData.instructions,
+            readyInMinutes: recipeData.readyInMinutes || 30,
+            servings: recipeData.servings || 1,
+            caloriesPerServing: getMacro(recipeData, 'Calories'),
+            proteinGramsPerServing: getMacro(recipeData, 'Protein'),
+            carbsGramsPerServing: getMacro(recipeData, 'Carbohydrates'),
+            fatGramsPerServing: getMacro(recipeData, 'Fat'),
+            nutritionalInfo: { 
+              usedIngredients: used, 
+              missedIngredients: missed, 
+              extendedIngredients: recipeData.extendedIngredients 
+            }
+          }
+        });
+
+        await prisma.mealPlanEntry.create({
+          data: {
+            mealPlanId: mealPlan.id,
+            day: new Date(currentDate),
+            mealType: mealData.type,
+            slotIndex: 0,
+            recipeId: recipe.id,
+            isLocked: false 
+          }
+        });
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    res.status(201).json({ message: 'Smart Plan generated!', mealPlanId: mealPlan.id });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to generate plan' });
+  }
+});
+
+// Swap Intelligente (Calcola i macro mancanti nella giornata)
+// Swap Intelligente (Macro calcolati + Istruzioni per il Popup)
+app.put('/api/planner/swap/:entryId', async (req, res) => {
+  try {
+    const { entryId } = req.params;
+    const apiKey = process.env.SPOONACULAR_API_KEY;
+
+    const currentEntry = await prisma.mealPlanEntry.findUnique({ 
+      where: { id: entryId }, 
+      include: { mealPlan: true } 
+    });
+    
+    const goal = await prisma.nutritionalGoal.findUnique({ 
+      where: { userId: currentEntry.mealPlan.userId } 
+    });
+
+    const dayEntries = await prisma.mealPlanEntry.findMany({ 
+      where: { mealPlanId: currentEntry.mealPlanId, day: currentEntry.day, id: { not: entryId } }, 
+      include: { recipe: true } 
+    });
+    
+    const usedCals = dayEntries.reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
+    const targetCals = Math.max(200, goal.dailyCalories - usedCals);
+    const type = currentEntry.mealType === 'BREAKFAST' ? 'breakfast' : 'main course';
+    const offset = Math.floor(Math.random() * 50);
+
+    // Chiamata con addRecipeInformation=true
+    const url = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=1&type=${type}&offset=${offset}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true&minCalories=${Math.max(100, targetCals - 200)}&maxCalories=${targetCals + 200}`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    const rd = data.results[0];
+
+    if (!rd) return res.status(400).json({ error: 'No suitable recipe found' });
+
+    const getMacro = (name) => rd.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
+
+    const newRecipe = await prisma.recipe.upsert({
+      where: { spoonacularId: rd.id },
+      update: {
+        instructions: rd.instructions,
+        nutritionalInfo: { extendedIngredients: rd.extendedIngredients }
+      },
+      create: {
+        sourceType: 'SPOONACULAR',
+        spoonacularId: rd.id,
+        title: rd.title,
+        imageUrl: rd.image,
+        instructions: rd.instructions,
+        caloriesPerServing: getMacro('Calories'),
+        proteinGramsPerServing: getMacro('Protein'),
+        carbsGramsPerServing: getMacro('Carbohydrates'),
+        fatGramsPerServing: getMacro('Fat'),
+        nutritionalInfo: { 
+          usedIngredients: rd.usedIngredients?.map(i => i.name) || [], 
+          missedIngredients: rd.missedIngredients?.map(i => i.name) || [], 
+          extendedIngredients: rd.extendedIngredients 
+        }
+      }
+    });
+
+    const updatedEntry = await prisma.mealPlanEntry.update({
+      where: { id: entryId },
+      data: { recipeId: newRecipe.id, isLocked: false },
+      include: { recipe: true }
+    });
+
+    res.status(200).json(updatedEntry);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Swap failed' });
+  }
+});
+
+// NUOVA ROTTA: Segna il pasto come "Mangiato" (isLocked)
+app.patch('/api/planner/entry/:entryId/toggle', async (req, res) => {
+  try {
+    const { entryId } = req.params;
+    const { isLocked } = req.body;
+
+    const updatedEntry = await prisma.mealPlanEntry.update({
+      where: { id: entryId },
+      data: { isLocked: isLocked }
+    });
+
+    res.status(200).json(updatedEntry);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to toggle status' });
+  }
+});
 
 const server = app.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
