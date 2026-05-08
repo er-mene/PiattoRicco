@@ -23,7 +23,7 @@ function App() {
     <div>
       <nav className="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
         <div className="container">
-          <Link className="navbar-brand fw-bold" to="/">🍽️ Pantry Chef</Link>
+          <Link className="navbar-brand fw-bold" to="/">🍽️ PiattoRicco</Link>
           
           <div className="navbar-collapse">
             <div className="navbar-nav ms-auto">

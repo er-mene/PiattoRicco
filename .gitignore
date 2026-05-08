@@ -19,7 +19,3 @@ build/
 *.swo
 *~
 .DS_Store
-
-# Prisma
-prisma/migrations/
-generated/

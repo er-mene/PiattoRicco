@@ -6,7 +6,6 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Valori di default (verranno sovrascritti se l'utente ha già salvato un profilo)
   const [formData, setFormData] = useState({
     dailyCalories: 2000,
     dailyProtein: 150,
@@ -14,7 +13,13 @@ export default function Profile() {
     dailyFat: 65
   });
 
-  // Caricamento iniziale dei dati
+  const [locked, setLocked] = useState({
+    dailyCalories: false,
+    dailyProtein: false,
+    dailyCarbs: false,
+    dailyFat: false
+  });
+
   useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) {
@@ -24,13 +29,11 @@ export default function Profile() {
 
     const user = JSON.parse(userString);
 
-    // Funzione per recuperare il profilo esistente
     const fetchProfile = async () => {
       try {
         const response = await fetch(`http://localhost:5001/api/profile/${user.id}`);
         if (response.ok) {
           const data = await response.json();
-          // Aggiorniamo il form con i dati del database
           setFormData({
             dailyCalories: data.dailyCalories,
             dailyProtein: data.dailyProtein,
@@ -46,9 +49,138 @@ export default function Profile() {
     fetchProfile();
   }, [navigate]);
 
+  const getLockedCount = () => {
+    return Object.values(locked).filter(Boolean).length;
+  };
+
+  const toggleLock = (field) => {
+    if (locked[field]) {
+      setLocked({ ...locked, [field]: false });
+    } else if (getLockedCount() < 2) {
+      setLocked({ ...locked, [field]: true });
+    }
+  };
+
+  // NEW: This function runs when the user clicks away from an input box.
+  // It guarantees that the Calories always mathematically match the Macros.
+  const handleBlur = () => {
+    const trueCalories = Math.max(0, Math.round((formData.dailyProtein * 4 + formData.dailyCarbs * 4 + formData.dailyFat * 9) * 100) / 100);
+    
+    if (formData.dailyCalories !== trueCalories) {
+      setFormData(prev => ({ ...prev, dailyCalories: trueCalories }));
+    }
+  };
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: Number(value) });
+    const cleanValue = e.target.value.replace(/^0+(?=\d)/, '');
+    e.target.value = cleanValue;
+
+    const name = e.target.name;
+    let newValue = Number(cleanValue);
+
+    if (newValue < 0) {
+      newValue = 0;
+    }
+
+    const newData = { ...formData, [name]: newValue };
+
+    // --- PATH 1: User is changing Calories ---
+    if (name === 'dailyCalories') {
+      const lockedMacros = ['dailyProtein', 'dailyCarbs', 'dailyFat'].filter(m => locked[m]);
+
+      if (lockedMacros.length === 0) {
+        newData.dailyCarbs = (newValue * 0.40) / 4; 
+        newData.dailyProtein = (newValue * 0.30) / 4; 
+        newData.dailyFat = (newValue * 0.30) / 9;     
+      } else {
+        let spentKcal = 0;
+        if (locked.dailyProtein) spentKcal += newData.dailyProtein * 4;
+        if (locked.dailyCarbs) spentKcal += newData.dailyCarbs * 4;
+        if (locked.dailyFat) spentKcal += newData.dailyFat * 9;
+
+        let remainingKcal = newValue - spentKcal;
+
+        // FIX: If remaining calories go negative mid-keystroke, clamp remaining to 0 
+        // so free macros stay at 0. We DO NOT force newData.dailyCalories back up 
+        // so the user can actually finish typing their number!
+        if (remainingKcal < 0) {
+          remainingKcal = 0;
+        }
+
+        const unlockedMacros = ['dailyProtein', 'dailyCarbs', 'dailyFat'].filter(m => !locked[m]);
+
+        if (unlockedMacros.length === 1) {
+          const free = unlockedMacros[0];
+          if (free === 'dailyProtein') newData.dailyProtein = remainingKcal / 4;
+          if (free === 'dailyCarbs') newData.dailyCarbs = remainingKcal / 4;
+          if (free === 'dailyFat') newData.dailyFat = remainingKcal / 9;
+        } else if (unlockedMacros.length === 2) {
+          const weights = { dailyCarbs: 40, dailyProtein: 30, dailyFat: 30 };
+          const w1 = weights[unlockedMacros[0]];
+          const w2 = weights[unlockedMacros[1]];
+          const totalW = w1 + w2;
+
+          const kcal1 = remainingKcal * (w1 / totalW);
+          const kcal2 = remainingKcal * (w2 / totalW);
+
+          if (unlockedMacros[0] === 'dailyProtein') newData.dailyProtein = kcal1 / 4;
+          else if (unlockedMacros[0] === 'dailyCarbs') newData.dailyCarbs = kcal1 / 4;
+          else if (unlockedMacros[0] === 'dailyFat') newData.dailyFat = kcal1 / 9;
+
+          if (unlockedMacros[1] === 'dailyProtein') newData.dailyProtein = kcal2 / 4;
+          else if (unlockedMacros[1] === 'dailyCarbs') newData.dailyCarbs = kcal2 / 4;
+          else if (unlockedMacros[1] === 'dailyFat') newData.dailyFat = kcal2 / 9;
+        }
+      }
+    } 
+    // --- PATH 2: User is changing Protein, Carbs, or Fat ---
+    else {
+      const fixedFields = new Set(Object.keys(locked).filter(k => locked[k]));
+      fixedFields.add(name); 
+
+      const freeFields = ['dailyCalories', 'dailyProtein', 'dailyCarbs', 'dailyFat']
+        .filter(f => !fixedFields.has(f));
+
+      if (freeFields.length > 0) {
+        const fieldToAdjust = freeFields.includes('dailyCalories') ? 'dailyCalories'
+                            : freeFields.includes('dailyFat') ? 'dailyFat'
+                            : freeFields.includes('dailyCarbs') ? 'dailyCarbs'
+                            : freeFields[0];
+
+        const { dailyCalories, dailyProtein, dailyCarbs, dailyFat } = newData;
+
+        if (fieldToAdjust === 'dailyCalories') {
+          newData.dailyCalories = dailyProtein * 4 + dailyCarbs * 4 + dailyFat * 9;
+        } else if (fieldToAdjust === 'dailyFat') {
+          newData.dailyFat = (dailyCalories - dailyProtein * 4 - dailyCarbs * 4) / 9;
+        } else if (fieldToAdjust === 'dailyCarbs') {
+          newData.dailyCarbs = (dailyCalories - dailyProtein * 4 - dailyFat * 9) / 4;
+        } else if (fieldToAdjust === 'dailyProtein') {
+          newData.dailyProtein = (dailyCalories - dailyCarbs * 4 - dailyFat * 9) / 4;
+        }
+
+        if (newData[fieldToAdjust] < 0) {
+          newData[fieldToAdjust] = 0;
+          
+          if (!locked.dailyCalories) {
+            newData.dailyCalories = newData.dailyProtein * 4 + newData.dailyCarbs * 4 + newData.dailyFat * 9;
+          } else {
+            if (name === 'dailyProtein') newData.dailyProtein = (newData.dailyCalories - newData.dailyCarbs * 4 - newData.dailyFat * 9) / 4;
+            else if (name === 'dailyCarbs') newData.dailyCarbs = (newData.dailyCalories - newData.dailyProtein * 4 - newData.dailyFat * 9) / 4;
+            else if (name === 'dailyFat') newData.dailyFat = (newData.dailyCalories - newData.dailyProtein * 4 - newData.dailyCarbs * 4) / 9;
+          }
+        }
+      }
+    }
+
+    // Round all numbers to 2 decimal places
+    Object.keys(newData).forEach(key => {
+      if (typeof newData[key] === 'number') {
+        newData[key] = Math.max(0, Math.round(newData[key] * 100) / 100);
+      }
+    });
+
+    setFormData(newData);
   };
 
   const handleSave = async (e) => {
@@ -56,16 +188,40 @@ export default function Profile() {
     setIsLoading(true);
     setMessage('');
 
+    // --- FINAL SAFETY NET ---
+    // Calculate the definitive values right before saving to catch any input race conditions
+    let safeData = { ...formData };
+    
+    if (locked.dailyCalories) {
+      // If Calories are locked, we force macros to fit inside them (adjusting Carbs or Fat)
+      const exactCalories = safeData.dailyProtein * 4 + safeData.dailyCarbs * 4 + safeData.dailyFat * 9;
+      if (Math.abs(safeData.dailyCalories - exactCalories) > 1) {
+         safeData.dailyFat = Math.max(0, (safeData.dailyCalories - safeData.dailyProtein * 4 - safeData.dailyCarbs * 4) / 9);
+      }
+    } else {
+      // If Calories are unlocked, we strictly trust the macros and force Calories to match
+      safeData.dailyCalories = safeData.dailyProtein * 4 + safeData.dailyCarbs * 4 + safeData.dailyFat * 9;
+    }
+
+    // Final rounding pass
+    Object.keys(safeData).forEach(key => {
+      if (typeof safeData[key] === 'number') {
+        safeData[key] = Math.round(safeData[key] * 100) / 100;
+      }
+    });
+
+    // Update the UI with the guaranteed safe data
+    setFormData(safeData);
+
     try {
       const user = JSON.parse(localStorage.getItem('user'));
 
-      // Salvataggio dei dati (NOTA: Porta 5001)
       const response = await fetch('http://localhost:5001/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
-          ...formData
+          ...safeData // Pass the safeData here, not formData!
         })
       });
 
@@ -104,46 +260,102 @@ export default function Profile() {
             <form onSubmit={handleSave}>
               <div className="row g-3 mb-4">
                 <div className="col-6">
-                  <label className="form-label fw-bold">Calories (kcal)</label>
+                  <div className="d-flex align-items-center gap-2 mb-2">
+                    <label className="form-label fw-bold mb-0">Calories (kcal)</label>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${locked.dailyCalories ? 'btn-danger' : 'btn-outline-secondary'}`}
+                      onClick={() => toggleLock('dailyCalories')}
+                      title={locked.dailyCalories ? 'Unlock' : getLockedCount() < 2 ? 'Lock' : 'Max 2 locks'}
+                      disabled={!locked.dailyCalories && getLockedCount() >= 2}
+                    >
+                      {locked.dailyCalories ? '🔒' : '🔓'}
+                    </button>
+                  </div>
                   <input 
                     type="number" 
                     className="form-control form-control-lg" 
                     name="dailyCalories" 
                     value={formData.dailyCalories} 
-                    onChange={handleChange} 
+                    onChange={handleChange}
+                    onBlur={handleBlur}  /* <--- ADDED HERE */
+                    min="0"
+                    readOnly={locked.dailyCalories}
                   />
                 </div>
                 
                 <div className="col-6">
-                  <label className="form-label fw-bold">Protein (g)</label>
+                  <div className="d-flex align-items-center gap-2 mb-2">
+                    <label className="form-label fw-bold mb-0">Protein (g)</label>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${locked.dailyProtein ? 'btn-danger' : 'btn-outline-secondary'}`}
+                      onClick={() => toggleLock('dailyProtein')}
+                      title={locked.dailyProtein ? 'Unlock' : getLockedCount() < 2 ? 'Lock' : 'Max 2 locks'}
+                      disabled={!locked.dailyProtein && getLockedCount() >= 2}
+                    >
+                      {locked.dailyProtein ? '🔒' : '🔓'}
+                    </button>
+                  </div>
                   <input 
                     type="number" 
                     className="form-control form-control-lg" 
                     name="dailyProtein" 
                     value={formData.dailyProtein} 
-                    onChange={handleChange} 
+                    onChange={handleChange}
+                    onBlur={handleBlur}  /* <--- ADDED HERE */
+                    min="0"
+                    readOnly={locked.dailyProtein}
                   />
                 </div>
 
                 <div className="col-6">
-                  <label className="form-label fw-bold">Carbs (g)</label>
+                  <div className="d-flex align-items-center gap-2 mb-2">
+                    <label className="form-label fw-bold mb-0">Carbs (g)</label>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${locked.dailyCarbs ? 'btn-danger' : 'btn-outline-secondary'}`}
+                      onClick={() => toggleLock('dailyCarbs')}
+                      title={locked.dailyCarbs ? 'Unlock' : getLockedCount() < 2 ? 'Lock' : 'Max 2 locks'}
+                      disabled={!locked.dailyCarbs && getLockedCount() >= 2}
+                    >
+                      {locked.dailyCarbs ? '🔒' : '🔓'}
+                    </button>
+                  </div>
                   <input 
                     type="number" 
                     className="form-control form-control-lg" 
                     name="dailyCarbs" 
                     value={formData.dailyCarbs} 
-                    onChange={handleChange} 
+                    onChange={handleChange}
+                    onBlur={handleBlur}  /* <--- ADDED HERE */
+                    min="0"
+                    readOnly={locked.dailyCarbs}
                   />
                 </div>
 
                 <div className="col-6">
-                  <label className="form-label fw-bold">Fat (g)</label>
+                  <div className="d-flex align-items-center gap-2 mb-2">
+                    <label className="form-label fw-bold mb-0">Fat (g)</label>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${locked.dailyFat ? 'btn-danger' : 'btn-outline-secondary'}`}
+                      onClick={() => toggleLock('dailyFat')}
+                      title={locked.dailyFat ? 'Unlock' : getLockedCount() < 2 ? 'Lock' : 'Max 2 locks'}
+                      disabled={!locked.dailyFat && getLockedCount() >= 2}
+                    >
+                      {locked.dailyFat ? '🔒' : '🔓'}
+                    </button>
+                  </div>
                   <input 
                     type="number" 
                     className="form-control form-control-lg" 
                     name="dailyFat" 
                     value={formData.dailyFat} 
-                    onChange={handleChange} 
+                    onChange={handleChange}
+                    onBlur={handleBlur}  /* <--- ADDED HERE */
+                    min="0"
+                    readOnly={locked.dailyFat}
                   />
                 </div>
               </div>
