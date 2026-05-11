@@ -96,8 +96,8 @@ model PantryItem {
   id                 String    @id @default(uuid())
   userId             String
   ingredientId       String
-  quantity           Float
-  unit               String
+  quantity           Float?
+  unit               String?
   normalizedQuantity Float?
   normalizedUnit     String?
   purchasedAt        DateTime  @default(now())

@@ -14,10 +14,11 @@ export default function Pantry() {
 
   const [formData, setFormData] = useState({
     name: '',
-    quantity: 1,
-    unit: 'pieces'
+    quantity: '',
+    unit: ''
   });
-
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ quantity: '', unit: '' });
   // Caricamento della dispensa iniziale
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -91,9 +92,10 @@ export default function Pantry() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
-          name: formData.name, // Questo ora sarà il nome ufficiale di Spoonacular!
-          quantity: formData.quantity,
-          unit: formData.unit
+          name: formData.name, 
+          // Inviamo null se il box è vuoto
+          quantity: formData.quantity === '' ? null : formData.quantity,
+          unit: formData.unit === '' ? null : formData.unit
         })
       });
 
@@ -116,6 +118,31 @@ export default function Pantry() {
       setItems(items.filter(item => item.id !== itemId));
     } catch (err) {
       setError('Failed to delete item.');
+    }
+  };
+  const startEditing = (item) => {
+    setEditingId(item.id);
+    setEditForm({ quantity: item.quantity || '', unit: item.unit || '' });
+  };
+
+  const handleSaveEdit = async (itemId) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/pantry/${itemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          quantity: editForm.quantity === '' ? null : editForm.quantity,
+          unit: editForm.unit === '' ? null : editForm.unit
+        })
+      });
+      if (!response.ok) throw new Error('Failed to update');
+      const updatedItem = await response.json();
+      
+      // Aggiorniamo la tabella e chiudiamo la modalità edit
+      setItems(items.map(item => item.id === itemId ? updatedItem : item));
+      setEditingId(null);
+    } catch (err) {
+      setError('Failed to update item.');
     }
   };
 
@@ -172,27 +199,32 @@ export default function Pantry() {
                 )}
               </div>
               
+{/* Campo Quantità */}
               <div className="col-md-3">
                 <input 
                   type="number" 
                   className="form-control" 
                   name="quantity"
+                  placeholder="Quantity" // Scritta in grigio quando è vuoto
                   min="0.1"
                   step="0.1"
                   value={formData.quantity}
                   onChange={handleChange}
                   disabled={isLoading}
-                  required
+                  /* required rimosso per permettere l'invio vuoto */
                 />
               </div>
+
+              {/* Campo Unità */}
               <div className="col-md-2">
                 <select 
-                  className="form-select" 
+                  className={`form-select ${formData.unit === '' ? 'text-muted' : ''}`} 
                   name="unit"
                   value={formData.unit}
                   onChange={handleChange}
                   disabled={isLoading}
                 >
+                  <option value="">Unit</option> {/* Opzione di default */}
                   <option value="pieces">pcs</option>
                   <option value="g">g</option>
                   <option value="kg">kg</option>
@@ -235,10 +267,35 @@ export default function Pantry() {
                         <td className="fw-medium text-capitalize">
                           {item.ingredient.name}
                         </td>
+                        
+                        {/* 1. NUOVO TD PER QUANTITÀ E UNITÀ (con box di modifica) */}
                         <td>
-                          {item.quantity} {item.unit}
+                          {editingId === item.id ? (
+                            <div className="d-flex gap-2">
+                              <input type="number" className="form-control form-control-sm" placeholder="Qty" value={editForm.quantity} onChange={(e) => setEditForm({...editForm, quantity: e.target.value})} style={{width: '70px'}} />
+                              <select className="form-select form-select-sm" value={editForm.unit} onChange={(e) => setEditForm({...editForm, unit: e.target.value})} style={{width: '80px'}}>
+                                <option value="">Unit</option>
+                                <option value="pieces">pcs</option>
+                                <option value="g">g</option>
+                                <option value="kg">kg</option>
+                                <option value="ml">ml</option>
+                                <option value="l">l</option>
+                                <option value="tbsp">tbsp</option>
+                                <option value="tsp">tsp</option>
+                              </select>
+                            </div>
+                          ) : (
+                            `${item.quantity || ''} ${item.unit || ''}`.trim() || '-'
+                          )}
                         </td>
+                        
+                        {/* 2. NUOVO TD PER I BOTTONI (Edit, Save, Remove) */}
                         <td className="text-end">
+                          {editingId === item.id ? (
+                            <button type="button" className="btn btn-sm btn-success me-2" onClick={() => handleSaveEdit(item.id)}>Save</button>
+                          ) : (
+                            <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => startEditing(item)}>Edit</button>
+                          )}
                           <button 
                             type="button" 
                             className="btn btn-sm btn-outline-danger"
@@ -247,6 +304,7 @@ export default function Pantry() {
                             Remove
                           </button>
                         </td>
+                        
                       </tr>
                     ))
                   )}

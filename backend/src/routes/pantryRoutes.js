@@ -24,29 +24,30 @@ router.post('/', async (req, res) => {
   try {
     const { userId, name, quantity, unit } = req.body;
     
-    if (!userId || !name || !quantity || !unit) {
+    // IL PROBLEMA ERA QUI: Abbiamo tolto !quantity e !unit
+    if (!userId || !name) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const ingredientName = name.trim().toLowerCase();
 
-    // A. Trova l'ingrediente nel DB generale, o crealo se non esiste
     const ingredient = await prisma.ingredient.upsert({
       where: { name: ingredientName },
-      update: {}, // Se esiste, non cambiamo nulla
-      create: { name: ingredientName } // Se non esiste, lo creiamo
+      update: {}, 
+      create: { name: ingredientName } 
     });
 
-    // B. Aggiungi l'elemento alla dispensa dell'utente
+// Sostituisci questo blocco in pantryRoutes.js
     const newItem = await prisma.pantryItem.create({
       data: { 
-        userId: userId, 
-        ingredientId: ingredient.id,
-        quantity: parseFloat(quantity),
-        unit: unit
+        // Usiamo la sintassi 'connect' per le relazioni al posto dei semplici ID
+        user: { connect: { id: userId } },
+        ingredient: { connect: { id: ingredient.id } },
+        quantity: (quantity === null || quantity === undefined) ? null : parseFloat(quantity),
+        unit: unit || null
       },
       include: {
-        ingredient: true // Restituiamo il pacchetto completo al frontend
+        ingredient: true 
       }
     });
 
@@ -56,7 +57,27 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to add ingredient' });
   }
 });
-
+// NUOVA ROTTA: Update quantity and unit
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quantity, unit } = req.body;
+    
+    const updatedItem = await prisma.pantryItem.update({
+      where: { id: id },
+      data: {
+        // Accetta valori vuoti o nulli convertendoli in null per il database
+        quantity: (quantity === null || quantity === '' || quantity === undefined) ? null : parseFloat(quantity),
+        unit: unit || null
+      },
+      include: { ingredient: true }
+    });
+    res.status(200).json(updatedItem);
+  } catch (error) {
+    console.error('Error updating ingredient:', error);
+    res.status(500).json({ error: 'Failed to update ingredient' });
+  }
+});
 // 3. Delete an ingredient from pantry
 router.delete('/:id', async (req, res) => {
   try {
