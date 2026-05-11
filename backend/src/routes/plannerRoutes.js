@@ -22,6 +22,38 @@ router.get('/:userId', async (req, res) => {
     });
 
     if (!activePlan) return res.status(404).json({ message: 'No active plan found' });
+
+    // --- MAGIA: Ricalcolo Dinamico degli Ingredienti ---
+    // 1. Peschiamo la dispensa aggiornata in questo preciso istante
+    const pantry = await prisma.pantryItem.findMany({ 
+      where: { userId }, include: { ingredient: true } 
+    });
+    const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
+
+    // 2. Aggiorniamo le liste di ogni singola ricetta prima di inviarle al frontend
+    activePlan.entries.forEach(entry => {
+      const recipe = entry.recipe;
+      const allIng = [
+        ...(recipe.nutritionalInfo?.usedIngredients || []),
+        ...(recipe.nutritionalInfo?.missedIngredients || [])
+      ];
+
+      let newUsed = [];
+      let newMissed = [];
+
+      allIng.forEach(ingName => {
+        const lowerIng = ingName.toLowerCase();
+        // Se c'è in dispensa, va in "used", altrimenti in "missed"
+        const isInPantry = pantryNames.some(p => lowerIng.includes(p) || p.includes(lowerIng));
+        isInPantry ? newUsed.push(ingName) : newMissed.push(ingName);
+      });
+
+      // Sovrascriviamo l'oggetto in memoria che stiamo per spedire a React
+      recipe.nutritionalInfo.usedIngredients = newUsed;
+      recipe.nutritionalInfo.missedIngredients = newMissed;
+    });
+    // ---------------------------------------------------
+
     res.status(200).json(activePlan);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch active meal plan' });
@@ -115,7 +147,7 @@ router.post('/generate', async (req, res) => {
     if (snackCount > 0) snackPool.sort((a, b) => getPantryScore(b) - getPantryScore(a));
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setHours(12, 0, 0, 0);
 
     await prisma.mealPlan.deleteMany({ where: { userId: userId, endDate: { gte: today } } });
 
