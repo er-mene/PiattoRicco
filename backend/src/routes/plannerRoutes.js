@@ -103,18 +103,13 @@ router.post('/generate', async (req, res) => {
         baseUrl += `&cuisine=${dietaryProfile.preferredCuisines.join(',')}`;
       }
 
-      if (pantryNames.length > 0) {
-        // TRUCCO ARCHITETTURALE: Scegliamo 1 o max 2 ingredienti chiave dalla dispensa
-        // per forzare l'API a restituire ricette compatibili senza andare in crash.
-        const shuffled = pantryNames.sort(() => 0.5 - Math.random());
-        const selectedIngredients = shuffled.slice(0, 1).join(','); // Forza 1 ingrediente
-        
-        const strictUrl = `${baseUrl}&includeIngredients=${encodeURIComponent(selectedIngredients)}&sort=max-used-ingredients`;
+      if (pantryQuery) {
+        const strictUrl = `${baseUrl}&includeIngredients=${encodeURIComponent(pantryQuery)}&sort=max-used-ingredients`;
         
         const res = await fetch(strictUrl);
         const data = await res.json();
         
-        // Se troviamo un buon bacino di ricette con questo ingrediente, lo usiamo
+        // Se troviamo un buon bacino di ricette con questi ingredienti, lo usiamo
         if (data.results && data.results.length >= (type === 'breakfast' ? 7 : 14)) {
           return data.results;
         }
@@ -294,6 +289,11 @@ router.put('/swap/:entryId', async (req, res) => {
     const currentEntry = await prisma.mealPlanEntry.findUnique({ where: { id: entryId }, include: { mealPlan: true } });
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
     const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
+    
+    const pantry = await prisma.pantryItem.findMany({ where: { userId: currentEntry.mealPlan.userId }, include: { ingredient: true } });
+    const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
+    const pantryQuery = pantryNames.join(',');
+
     const dayEntries = await prisma.mealPlanEntry.findMany({ 
       where: { mealPlanId: currentEntry.mealPlanId, day: currentEntry.day, id: { not: entryId } }, include: { recipe: true } 
     });
@@ -326,6 +326,10 @@ router.put('/swap/:entryId', async (req, res) => {
     if (dietaryProfile?.preferredCuisines?.length) {
       url += `&cuisine=${dietaryProfile.preferredCuisines.join(',')}`;
     }
+
+    if (pantryQuery) {
+      url += `&includeIngredients=${encodeURIComponent(pantryQuery)}&sort=max-used-ingredients`;
+    }
     
     const response = await fetch(url);
     const data = await response.json();
@@ -344,8 +348,6 @@ router.put('/swap/:entryId', async (req, res) => {
     const rd = data.results[0]; // Prendiamo la vincitrice assoluta
 
     // Calcolo Dispensa
-    const pantry = await prisma.pantryItem.findMany({ where: { userId: currentEntry.mealPlan.userId }, include: { ingredient: true } });
-    const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
     let used = [], missed = [];
     const allIng = [...(rd.usedIngredients || []), ...(rd.missedIngredients || []), ...(rd.extendedIngredients || [])];
     const uniqueIng = Array.from(new Set(allIng.map(a => a.name.toLowerCase()))).map(n => allIng.find(a => a.name.toLowerCase() === n));
