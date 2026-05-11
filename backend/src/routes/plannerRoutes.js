@@ -16,7 +16,7 @@ router.get('/:userId', async (req, res) => {
       include: {
         entries: {
           include: { recipe: true },
-          orderBy: [{ day: 'asc' }, { mealType: 'asc' }]
+          orderBy: [{ day: 'asc' }, { slotIndex: 'asc' }]
         }
       }
     });
@@ -167,28 +167,17 @@ router.post('/generate', async (req, res) => {
       let remCarbs = goal.dailyCarbs;
       let remFat = goal.dailyFat;
 
-      // A. La Colazione (Rimane identica)
+      const dailyMeals = [];
+
+      // A. La Colazione
       const b = breakfastPool.splice(0, 1)[0];
       remCals -= getMacro(b, 'Calories');
       remPro -= getMacro(b, 'Protein');
       remCarbs -= getMacro(b, 'Carbohydrates');
       remFat -= getMacro(b, 'Fat');
-      const dailyMeals = [{ type: 'BREAKFAST', slotIndex: 0, data: b }];
+      dailyMeals.push({ type: 'BREAKFAST', slotIndex: 10, data: b });
 
-      // B. Il Pranzo
-      mainPool.sort((x, y) => {
-        const diffX = Math.abs(getMacro(x, 'Calories') - lunchTarget.calories) + (Math.abs(getMacro(x, 'Protein') - lunchTarget.protein) * 4) + (Math.abs(getMacro(x, 'Carbohydrates') - lunchTarget.carbs) * 4) + (Math.abs(getMacro(x, 'Fat') - lunchTarget.fat) * 9);
-        const diffY = Math.abs(getMacro(y, 'Calories') - lunchTarget.calories) + (Math.abs(getMacro(y, 'Protein') - lunchTarget.protein) * 4) + (Math.abs(getMacro(y, 'Carbohydrates') - lunchTarget.carbs) * 4) + (Math.abs(getMacro(y, 'Fat') - lunchTarget.fat) * 9);
-        return diffX - diffY;
-      });
-      const l = mainPool.shift();
-      remCals -= getMacro(l, 'Calories');
-      remPro -= getMacro(l, 'Protein');
-      remCarbs -= getMacro(l, 'Carbohydrates');
-      remFat -= getMacro(l, 'Fat');
-      dailyMeals.push({ type: 'LUNCH', slotIndex: 0, data: l });
-
-      // C. Gli Snack
+      // B. Gli Snack (Distribuiti tra mattina e pomeriggio)
       for (let sIndex = 0; sIndex < snackCount; sIndex++) {
         snackPool.sort((x, y) => {
           const diffX = Math.abs(getMacro(x, 'Calories') - snackTarget.calories) + (Math.abs(getMacro(x, 'Protein') - snackTarget.protein) * 4) + (Math.abs(getMacro(x, 'Carbohydrates') - snackTarget.carbs) * 4) + (Math.abs(getMacro(x, 'Fat') - snackTarget.fat) * 9);
@@ -200,17 +189,61 @@ router.post('/generate', async (req, res) => {
         remPro -= getMacro(s, 'Protein');
         remCarbs -= getMacro(s, 'Carbohydrates');
         remFat -= getMacro(s, 'Fat');
-        dailyMeals.push({ type: 'SNACK', slotIndex: sIndex, data: s });
+        
+        const snackSlot = (sIndex % 2 === 0 ? 20 : 40) + Math.floor(sIndex / 2);
+        dailyMeals.push({ type: 'SNACK', slotIndex: snackSlot, data: s });
       }
 
-      // D. La Cena: Ora sì, la cena DEVE assorbire tutto il rimanente esatto per chiudere la giornata.
-      mainPool.sort((x, y) => {
-        const diffX = Math.abs(getMacro(x, 'Calories') - remCals) + (Math.abs(getMacro(x, 'Protein') - remPro) * 4) + (Math.abs(getMacro(x, 'Carbohydrates') - remCarbs) * 4) + (Math.abs(getMacro(x, 'Fat') - remFat) * 9);
-        const diffY = Math.abs(getMacro(y, 'Calories') - remCals) + (Math.abs(getMacro(y, 'Protein') - remPro) * 4) + (Math.abs(getMacro(y, 'Carbohydrates') - remCarbs) * 4) + (Math.abs(getMacro(y, 'Fat') - remFat) * 9);
-        return diffX - diffY;
-      });
-      const d = mainPool.shift();
-      dailyMeals.push({ type: 'DINNER', slotIndex: 0, data: d });
+      // C. Ricerca della Miglior Coppia (Pranzo + Cena) per soddisfare +/- 100 kcal
+      let bestPair = null;
+      let minError = Infinity;
+      let bestPairFallback = null;
+      let minErrorFallback = Infinity;
+
+      for (let x = 0; x < mainPool.length; x++) {
+        for (let y = x + 1; y < mainPool.length; y++) {
+          const l_cand = mainPool[x];
+          const d_cand = mainPool[y];
+
+          const combinedCals = getMacro(l_cand, 'Calories') + getMacro(d_cand, 'Calories');
+          const combinedPro = getMacro(l_cand, 'Protein') + getMacro(d_cand, 'Protein');
+          const combinedCarbs = getMacro(l_cand, 'Carbohydrates') + getMacro(d_cand, 'Carbohydrates');
+          const combinedFat = getMacro(l_cand, 'Fat') + getMacro(d_cand, 'Fat');
+
+          // Errore sui macro: penalizziamo le deviazioni.
+          const error = Math.abs(combinedCals - remCals) + 
+                        Math.abs(combinedPro - remPro) * 4 + 
+                        Math.abs(combinedCarbs - remCarbs) * 4 + 
+                        Math.abs(combinedFat - remFat) * 9;
+
+          // Se soddisfa il vincolo rigoroso delle 100 kcal
+          if (Math.abs(combinedCals - remCals) <= 100) {
+            if (error < minError) {
+              minError = error;
+              bestPair = { indexL: x, indexD: y, l: l_cand, d: d_cand };
+            }
+          }
+
+          // Tracciamo anche il miglior fallback generale
+          if (error < minErrorFallback) {
+            minErrorFallback = error;
+            bestPairFallback = { indexL: x, indexD: y, l: l_cand, d: d_cand };
+          }
+        }
+      }
+
+      const selectedPair = bestPair || bestPairFallback;
+
+      // Rimuoviamo gli elementi dal pool (rimuoviamo prima quello con indice maggiore per non sfalsare)
+      const maxIndex = Math.max(selectedPair.indexL, selectedPair.indexD);
+      const minIndex = Math.min(selectedPair.indexL, selectedPair.indexD);
+      
+      mainPool.splice(maxIndex, 1);
+      mainPool.splice(minIndex, 1);
+
+      // Aggiungiamo pranzo e cena
+      dailyMeals.push({ type: 'LUNCH', slotIndex: 30, data: selectedPair.l });
+      dailyMeals.push({ type: 'DINNER', slotIndex: 50, data: selectedPair.d });
 
       // Salvataggio nel Database (Uguale a prima, ma con controllo Dispensa infallibile)
       for (let j = 0; j < dailyMeals.length; j++) {
