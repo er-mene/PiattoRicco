@@ -1,13 +1,19 @@
 const SPOONACULAR_BASE_URL = 'https://api.spoonacular.com';
 
-export function getApiKey() {
-  const apiKey = process.env.SPOONACULAR_API_KEY;
+let currentKeyIndex = 0;
 
-  if (!apiKey) {
-    throw new Error('SPOONACULAR_API_KEY is not configured');
+export function getApiKey() {
+  const keysStr = process.env.SPOONACULAR_API_KEYS || process.env.SPOONACULAR_API_KEY;
+  const keys = keysStr ? keysStr.split(',').map(k => k.trim()).filter(Boolean) : [];
+
+  if (keys.length === 0) {
+    throw new Error('SPOONACULAR_API_KEYS is not configured');
   }
 
-  return apiKey;
+  const selectedKey = keys[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % keys.length;
+
+  return selectedKey;
 }
 
 export async function spoonacularGet(path, params = {}) {
