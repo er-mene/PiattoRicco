@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 
 // Importiamo le nostre pagine
@@ -10,6 +11,7 @@ import Register from './pages/Register';
 
 function App() {
   const navigate = useNavigate();
+  const [isNavOpen, setIsNavOpen] = useState(false);
   // Controlliamo in tempo reale se l'utente è loggato guardando il localStorage
   const isAuthenticated = !!localStorage.getItem('token');
 
@@ -25,8 +27,16 @@ function App() {
         <div className="container">
           <Link className="navbar-brand fw-bold" to="/">🍽️ PiattoRicco</Link>
           
-          <div className="navbar-collapse">
-            <div className="navbar-nav ms-auto">
+          <button 
+            className="navbar-toggler" 
+            type="button" 
+            onClick={() => setIsNavOpen(!isNavOpen)}
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          
+          <div className={`collapse navbar-collapse ${isNavOpen ? 'show' : ''}`}>
+            <div className="navbar-nav ms-auto text-center text-lg-start mt-3 mt-lg-0" onClick={() => setIsNavOpen(false)}>
               <Link className="nav-link" to="/">Dashboard</Link>
               <Link className="nav-link" to="/pantry">Pantry</Link>
               <Link className="nav-link" to="/planner">Meal Planner</Link>
@@ -39,8 +49,8 @@ function App() {
                 </button>
               ) : (
                 <>
-                  <Link className="btn btn-outline-light ms-3 btn-sm" to="/login">Log In</Link>
-                  <Link className="btn btn-primary ms-2 btn-sm" to="/register">Sign Up</Link>
+                  <Link className="btn btn-outline-light ms-lg-3 my-2 my-lg-0 btn-sm" to="/login">Log In</Link>
+                  <Link className="btn btn-primary ms-lg-2 mb-2 mb-lg-0 btn-sm" to="/register">Sign Up</Link>
                 </>
               )}
             </div>

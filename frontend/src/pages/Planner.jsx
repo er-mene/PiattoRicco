@@ -11,7 +11,7 @@ export default function Planner() {
   const fetchActivePlan = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch(`http://localhost:5001/api/planner/${user.id}`);
+      const response = await fetch(`/api/planner/${user.id}`);
       if (response.ok) {
         const data = await response.json();
         setMealPlan(groupEntriesByDay(data.entries));
@@ -31,7 +31,7 @@ export default function Planner() {
     setError('');
     try {
       const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch('http://localhost:5001/api/planner/generate', {
+      const response = await fetch('/api/planner/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id })
@@ -50,7 +50,7 @@ export default function Planner() {
   const handleSwapRecipe = async (entryId) => {
     setSwappingId(entryId);
     try {
-      const response = await fetch(`http://localhost:5001/api/planner/swap/${entryId}`, { method: 'PUT' });
+      const response = await fetch(`/api/planner/swap/${entryId}`, { method: 'PUT' });
       if (response.ok) await fetchActivePlan();
     } catch (error) {
       alert("Failed to swap recipe.");
@@ -73,7 +73,7 @@ export default function Planner() {
       setMealPlan(updatedPlan);
 
       // Chiamata in background per salvare nel DB
-      await fetch(`http://localhost:5001/api/planner/entry/${entryId}/toggle`, {
+      await fetch(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isLocked: !currentStatus })
@@ -99,7 +99,7 @@ export default function Planner() {
   return (
     <div className="row justify-content-center mt-4 mb-5">
       <div className="col-12">
-        <div className="d-flex justify-content-between align-items-center mb-4">
+        <div className="d-flex flex-column flex-md-row justify-content-between align-md-items-center mb-4 gap-3">
           <h2>📅 Advanced Meal Planner</h2>
           <button 
             onClick={handleGeneratePlan} 
@@ -113,7 +113,7 @@ export default function Planner() {
         {error && <div className="alert alert-danger shadow-sm"><strong>Oops!</strong> {error}</div>}
 
         {!mealPlan && !isLoading && !error && (
-          <div className="card border-0 shadow-sm text-center p-5 mt-4 bg-light">
+          <div className="card border-0 shadow-sm text-center p-5 mt-4 bg-body-tertiary">
             <h4 className="text-muted">Your calendar is empty.</h4>
             <p className="text-muted mb-0">Click Generate to create a plan based on your exact macros and pantry!</p>
           </div>
@@ -180,7 +180,7 @@ export default function Planner() {
                           const missed = info.missedIngredients || [];
                           
                           // Se è "isLocked" (Mangiato), applichiamo uno sfondo leggermente grigio e opaco
-                          const liClass = entry.isLocked ? 'list-group-item p-3 position-relative bg-light opacity-75' : 'list-group-item p-3 position-relative';
+                          const liClass = entry.isLocked ? 'list-group-item p-3 position-relative bg-body-tertiary opacity-50' : 'list-group-item p-3 position-relative';
                           
                           return (
                             <li key={entry.id} className={liClass} style={{ transition: 'all 0.3s' }}>
@@ -188,7 +188,8 @@ export default function Planner() {
                               <div className="d-flex justify-content-between align-items-start mb-2">
                                 <span className={`badge ${
                                   entry.mealType === 'BREAKFAST' ? 'bg-info text-dark' : 
-                                  entry.mealType === 'LUNCH' ? 'bg-success' : 'bg-primary'
+                                  entry.mealType === 'LUNCH' ? 'bg-success' : 
+                                  entry.mealType === 'DINNER' ? 'bg-primary' : 'bg-warning text-dark'
                                 }`}>
                                   {entry.mealType}
                                 </span>
@@ -230,7 +231,7 @@ export default function Planner() {
                               </div>
 
                               {!entry.isLocked && missed.length > 0 && (
-                                <div className="mt-2 p-2 bg-white border rounded" style={{ fontSize: '0.75rem' }}>
+                                <div className="mt-2 p-2 bg-body-tertiary border rounded" style={{ fontSize: '0.75rem' }}>
                                   <strong className="text-danger d-block mb-1">🛒 Missing Ingredients:</strong>
                                   <span className="text-muted text-capitalize">{missed.join(', ')}</span>
                                 </div>
@@ -254,7 +255,7 @@ export default function Planner() {
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content border-0 shadow-lg">
               
-              <div className="modal-header bg-light">
+              <div className="modal-header bg-body-tertiary">
                 <h4 className="modal-title fw-bold text-primary">{selectedRecipe.title}</h4>
                 <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
               </div>
@@ -303,7 +304,7 @@ export default function Planner() {
               </div>
 
               {/* 5. Il Footer col bottone originale */}
-              <div className="modal-footer bg-light">
+              <div className="modal-footer bg-body-tertiary">
                 {selectedRecipe.sourceUrl && (
                   <a href={selectedRecipe.sourceUrl} target="_blank" rel="noreferrer" className="btn btn-outline-primary me-auto">
                     View Original Source

@@ -21,11 +21,11 @@ export default function Dashboard() {
   const fetchDashboardData = async (userId) => {
     setIsLoading(true);
     try {
-      const goalRes = await fetch(`http://localhost:5001/api/profile/${userId}`);
+      const goalRes = await fetch(`/api/profile/${userId}`);
       if (goalRes.ok) setGoals(await goalRes.json());
-      const pantryRes = await fetch(`http://localhost:5001/api/pantry/${userId}`);
+      const pantryRes = await fetch(`/api/pantry/${userId}`);
       if (pantryRes.ok) setPantry(await pantryRes.json());
-      const planRes = await fetch(`http://localhost:5001/api/planner/${userId}`);
+      const planRes = await fetch(`/api/planner/${userId}`);
       if (planRes.ok) {
         const planData = await planRes.json();
         setWeeklyPlan(planData); // Salviamo tutto il piano per la lista della spesa
@@ -44,7 +44,7 @@ export default function Dashboard() {
     const updatedMeals = todayMeals.map(m => m.id === entryId ? { ...m, isLocked: !currentStatus } : m);
     setTodayMeals(updatedMeals);
     try {
-      await fetch(`http://localhost:5001/api/planner/entry/${entryId}/toggle`, {
+      await fetch(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isLocked: !currentStatus })
@@ -85,7 +85,7 @@ export default function Dashboard() {
 
     const user = JSON.parse(localStorage.getItem('user'));
     try {
-      const res = await fetch(`http://localhost:5001/api/pantry`, {
+      const res = await fetch(`/api/pantry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, name: itemName, quantity: null, unit: null })
@@ -93,7 +93,7 @@ export default function Dashboard() {
 
       if (res.ok) {
         // 2. Ricarichiamo la dispensa (l'elemento sparirà dalla lista magicamente)
-        const updated = await fetch(`http://localhost:5001/api/pantry/${user.id}`);
+        const updated = await fetch(`/api/pantry/${user.id}`);
         setPantry(await updated.json());
       }
     } catch (error) { 
@@ -120,7 +120,7 @@ export default function Dashboard() {
 
   return (
     <div className="container mt-4 mb-5">
-      <div className="d-flex justify-content-between align-items-end mb-4">
+      <div className="d-flex flex-column flex-md-row justify-content-between align-md-items-end mb-4 gap-3">
         <div>
           <h2 className="fw-bold mb-0">Daily Action Plan</h2>
           <p className="text-muted mb-0">Here's what's cooking for today, {new Date().toLocaleDateString()}</p>
@@ -130,12 +130,12 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <div className="card shadow-sm border-0 mb-5 p-4 rounded-4 bg-white">
+      <div className="card shadow-sm border-0 mb-5 p-4 rounded-4 bg-body-tertiary">
         <h6 className="fw-bold text-uppercase text-muted mb-4 small">Nutritional Performance (Today)</h6>
         <div className="row row-cols-1 row-cols-md-4 g-4">
           <div className="col">
             <div className="d-flex justify-content-between mb-1">
-              <span className="small fw-bold text-dark">🔥 Cals</span>
+              <span className="small fw-bold">🔥 Cals</span>
               <span className="small text-muted">{eaten.cals.toFixed(0)}/{goals.dailyCalories}</span>
             </div>
             <div className="progress" style={{ height: '8px' }}>
@@ -144,7 +144,7 @@ export default function Dashboard() {
           </div>
           <div className="col">
             <div className="d-flex justify-content-between mb-1">
-              <span className="small fw-bold text-dark">🥩 Protein</span>
+              <span className="small fw-bold">🥩 Protein</span>
               <span className="small text-muted">{eaten.pro.toFixed(0)}/{goals.dailyProtein}g</span>
             </div>
             <div className="progress" style={{ height: '8px' }}>
@@ -153,7 +153,7 @@ export default function Dashboard() {
           </div>
           <div className="col">
             <div className="d-flex justify-content-between mb-1">
-              <span className="small fw-bold text-dark">🌾 Carbs</span>
+              <span className="small fw-bold">🌾 Carbs</span>
               <span className="small text-muted">{eaten.carb.toFixed(0)}/{goals.dailyCarbs}g</span>
             </div>
             <div className="progress" style={{ height: '8px' }}>
@@ -162,7 +162,7 @@ export default function Dashboard() {
           </div>
           <div className="col">
             <div className="d-flex justify-content-between mb-1">
-              <span className="small fw-bold text-dark">🥑 Fat</span>
+              <span className="small fw-bold">🥑 Fat</span>
               <span className="small text-muted">{eaten.fat.toFixed(0)}/{goals.dailyFat}g</span>
             </div>
             <div className="progress" style={{ height: '8px' }}>
@@ -183,7 +183,7 @@ export default function Dashboard() {
               {todayMeals.map(entry => (
                 <div className="col-md-6" key={entry.id}>
                   <div 
-                    className={`card h-100 shadow-sm border-0 position-relative ${entry.isLocked ? 'bg-light' : ''}`}
+                    className={`card h-100 shadow-sm border-0 position-relative ${entry.isLocked ? 'bg-body-tertiary opacity-75' : 'bg-body-secondary'}`}
                     style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
                     onClick={() => setSelectedRecipe(entry.recipe)}
                   >
@@ -225,7 +225,7 @@ export default function Dashboard() {
         {/* COLONNA DESTRA: Smart Grocery List */}
         <div className="col-lg-4">
           <div className="card shadow-sm border-0 rounded-4 h-100">
-            <div className="card-header bg-white border-bottom-0 pt-4 pb-0">
+            <div className="card-header bg-body-tertiary border-bottom-0 pt-4 pb-0">
               <h5 className="fw-bold mb-1">🛒 Smart Grocery List</h5>
               <p className="text-muted small">Missing ingredients for the week</p>
             </div>
@@ -249,7 +249,7 @@ export default function Dashboard() {
                         <span className={`flex-grow-1 ${isChecked ? 'text-decoration-line-through text-muted' : 'fw-medium'}`}>
                           {item.name}
                         </span>
-                        <span className="badge bg-light text-dark border rounded-pill">
+                        <span className="badge bg-secondary border rounded-pill">
                           x{item.count}
                         </span>
                       </li>

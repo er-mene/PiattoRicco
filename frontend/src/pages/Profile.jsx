@@ -31,7 +31,7 @@ export default function Profile() {
 
     const fetchProfile = async () => {
       try {
-        const response = await fetch(`http://localhost:5001/api/profile/${user.id}`);
+        const response = await fetch(`/api/profile/${user.id}`);
         if (response.ok) {
           const data = await response.json();
           setFormData({
@@ -216,7 +216,7 @@ export default function Profile() {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
 
-      const response = await fetch('http://localhost:5001/api/profile', {
+      const response = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
