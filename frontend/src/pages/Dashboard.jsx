@@ -269,7 +269,14 @@ export default function Dashboard() {
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content border-0 rounded-4 shadow-lg">
               <div className="modal-header border-0 pb-0">
-                <h5 className="fw-bold mb-0">{selectedRecipe.title}</h5>
+                <div className="d-flex align-items-center gap-2">
+                  <h5 className="fw-bold mb-0">{selectedRecipe.title}</h5>
+                  {selectedRecipe.sourceType === 'AI_GENERATED' && (
+                    <span className="badge text-dark border border-warning shadow-sm" style={{ background: 'linear-gradient(45deg, #FFD700, #FFA500)' }}>
+                      ✨ AI Chef Recipe
+                    </span>
+                  )}
+                </div>
                 <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
               </div>
               
@@ -282,12 +289,19 @@ export default function Dashboard() {
                 />
 
                 <div className="row g-4">
+                  {/* LISTA INGREDIENTI AGGIORNATA (AI + Spoonacular) */}
                   <div className="col-md-5">
                     <h6 className="fw-bold mb-3 text-uppercase small text-muted">Ingredients</h6>
                     <ul className="list-group list-group-flush small">
-                      {selectedRecipe.nutritionalInfo?.extendedIngredients?.map((ing, idx) => (
-                        <li key={idx} className="list-group-item px-0 border-light py-1">
-                          • {ing.original || ing.name}
+                      {(selectedRecipe.nutritionalInfo?.ingredientsList || selectedRecipe.nutritionalInfo?.extendedIngredients)?.map((ing, idx) => (
+                        <li key={idx} className="list-group-item px-0 border-light py-2">
+                          {ing.original ? (
+                            <span>• {ing.original}</span>
+                          ) : (
+                            <span>
+                              <strong className="text-primary">{ing.amount} {ing.unit}</strong> <span className="text-capitalize">{ing.name}</span>
+                            </span>
+                          )}
                         </li>
                       )) || <li className="text-muted">No details available</li>}
                     </ul>

@@ -2,6 +2,7 @@ import express from 'express';
 import prisma from '../db.js';
 import { getApiKey } from '../utils/spoonacular.js';
 import { buildMealSlots } from '../utils/plannerUtils.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = express.Router();
 
@@ -434,5 +435,127 @@ router.patch('/entry/:entryId/toggle', async (req, res) => {
     res.status(500).json({ error: 'Failed to toggle status' });
   }
 });
+// IL MOTORE AI: Generazione del piano tramite LLM (Gemini)
+// IL MOTORE AI: Generazione del piano tramite LLM (Gemini)
+router.post('/generate-ai', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const goal = await prisma.nutritionalGoal.findUnique({ where: { userId } });
+    const pantry = await prisma.pantryItem.findMany({ where: { userId }, include: { ingredient: true } });
+    
+    // Passiamo i nomi esatti della dispensa all'AI
+    const pantryNames = pantry.map(p => p.ingredient.name).join(', ');
 
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: { responseMimeType: "application/json" } 
+    });
+
+    // 1. PROMPT IN INGLESE E PIÙ RIGIDO
+// 1. PROMPT IN INGLESE E PIÙ RIGIDO CON QUANTITÀ
+    const prompt = `
+      You are an expert nutritionist and chef. Create a 7-day meal plan.
+      Daily exact target: ${goal.dailyCalories} kcal, ${goal.dailyProtein}g protein, ${goal.dailyCarbs}g carbs, ${goal.dailyFat}g fat.
+      The user has these EXACT ingredients in their pantry: [${pantryNames}]. You MUST prioritize using these exact names to reduce waste.
+
+      Each day MUST contain exactly 5 meals in this STRICT chronological order: BREAKFAST, SNACK, LUNCH, SNACK, DINNER.
+      
+      Return EXCLUSIVELY a JSON array with this exact structure:
+      [
+        {
+          "dayIndex": 0,
+          "meals": [
+            {
+              "type": "BREAKFAST",
+              "title": "Recipe Title",
+              "calories": 400,
+              "protein": 30,
+              "carbs": 40,
+              "fat": 10,
+              "instructions": "Step-by-step instructions in clean HTML (e.g., <ol><li>...</li></ol>). Wrap ingredient names in <strong>.",
+              "ingredients": [ {"name": "chicken breast", "amount": 150, "unit": "g"} ],
+              "usedIngredients": ["exact pantry ingredient 1"], 
+              "missedIngredients": ["ingredient to buy"]
+            }
+          ]
+        }
+      ]
+    `;
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    const aiPlan = JSON.parse(responseText);
+
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+
+    await prisma.mealPlan.deleteMany({ where: { userId: userId, endDate: { gte: new Date(new Date().setHours(0,0,0,0)) } } });
+
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + 6);
+
+    const mealPlan = await prisma.mealPlan.create({
+      data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
+    });
+
+    // 2. DIZIONARIO IMMAGINI DINAMICHE
+// 2. IMMAGINI PLACEHOLDER TEMATICHE (Dark Theme + Testo + Emoji)
+    const mealImages = {
+      BREAKFAST: '/assets/placeholders/breakfast_placeholder.png', // Corrisponde a image_0.png
+      LUNCH: '/assets/placeholders/lunch_placeholder.png',         // Corrisponde a image_2.png
+      SNACK: '/assets/placeholders/snack_placeholder.png',         // Corrisponde a image_1.png
+      DINNER: '/assets/placeholders/dinner_placeholder.png'         // Corrisponde a image_3.png
+    };
+
+    for (const day of aiPlan) {
+      let currentDate = new Date(today);
+      currentDate.setDate(currentDate.getDate() + day.dayIndex);
+
+      let currentSlotIndex = 0; 
+
+      for (const meal of day.meals) {
+        
+        // Assegna l'immagine fissa in base al tipo di pasto
+        const dynamicImage = mealImages[meal.type] || mealImages.LUNCH;
+
+        const recipe = await prisma.recipe.create({
+          data: {
+            sourceType: 'AI_GENERATED',
+            spoonacularId: Math.floor(Math.random() * 1000000), 
+            title: meal.title,
+            imageUrl: dynamicImage, // <-- Immagine Placeholder applicata
+            instructions: meal.instructions,
+            caloriesPerServing: meal.calories,
+            proteinGramsPerServing: meal.protein,
+            carbsGramsPerServing: meal.carbs,
+            fatGramsPerServing: meal.fat,
+            nutritionalInfo: { 
+              usedIngredients: meal.usedIngredients || [], 
+              missedIngredients: meal.missedIngredients || [],
+              ingredientsList: meal.ingredients || []
+            }
+          }
+        });
+
+        await prisma.mealPlanEntry.create({
+          data: {
+            mealPlanId: mealPlan.id,
+            day: currentDate,
+            mealType: meal.type,
+            slotIndex: currentSlotIndex, // <-- Forza l'ordine: 0, 1, 2, 3, 4
+            recipeId: recipe.id,
+            isLocked: false 
+          }
+        });
+        
+        currentSlotIndex++; // Incrementa per il pasto successivo dello stesso giorno
+      }
+    }
+
+    res.status(201).json({ message: 'AI Plan generated perfectly!', mealPlanId: mealPlan.id });
+  } catch (error) {
+    console.error("AI Generation Error:", error);
+    res.status(500).json({ error: 'Failed to generate AI plan' });
+  }
+});
 export default router;

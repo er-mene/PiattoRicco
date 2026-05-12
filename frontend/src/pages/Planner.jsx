@@ -8,6 +8,7 @@ export default function Planner() {
   const [swappingId, setSwappingId] = useState(null);
   const [error, setError] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [useAI, setUseAI] = useState(false);
   const fetchActivePlan = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -27,26 +28,31 @@ export default function Planner() {
   }, [navigate]);
 
   const handleGeneratePlan = async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch('/api/planner/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id })
-      });
+      setIsLoading(true);
+      setError('');
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        
+        // MAGIA AI: Decidiamo quale rotta chiamare in base al toggle
+        const endpoint = useAI 
+          ? 'http://localhost:5001/api/planner/generate-ai' 
+          : 'http://localhost:5001/api/planner/generate';
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || result.message);
-      
-      window.location.reload(); 
-    } catch (err) {
-      setError(err.message);
-      setIsLoading(false);
-    }
-  };
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id })
+        });
 
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || result.message);
+        
+        window.location.reload(); 
+      } catch (err) {
+        setError(err.message);
+        setIsLoading(false); // Assicurati di usare isLoading come nel tuo codice
+      }
+    };
   const handleSwapRecipe = async (entryId) => {
     setSwappingId(entryId);
     try {
@@ -99,15 +105,39 @@ export default function Planner() {
   return (
     <div className="row justify-content-center mt-4 mb-5">
       <div className="col-12">
-        <div className="d-flex flex-column flex-md-row justify-content-between align-md-items-center mb-4 gap-3">
-          <h2>📅 Advanced Meal Planner</h2>
-          <button 
-            onClick={handleGeneratePlan} 
-            className="btn btn-primary btn-lg fw-bold shadow-sm"
-            disabled={isLoading}
-          >
-            {isLoading ? '🧠 AI is cooking...' : '✨ Generate Smart Week'}
-          </button>
+        <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3 p-4 rounded-4 shadow-lg" 
+            style={{ background: '#1e1e1e', border: '1px solid #333' }}>
+          <h2 className="mb-0 text-white fw-bold">📅 Advanced Planner</h2>
+          
+          <div className="d-flex align-items-center gap-3 bg-dark p-2 px-3 rounded-pill border border-secondary shadow-sm">
+            <span className={`fw-bold small ${!useAI ? 'text-info' : 'text-secondary'}`}>Standard</span>
+            
+            <div className="form-check form-switch fs-5 mb-0">
+              <input 
+                className="form-check-input bg-secondary border-0 shadow-none" 
+                type="checkbox" 
+                role="switch" 
+                checked={useAI} 
+                onChange={(e) => setUseAI(e.target.checked)} 
+                style={{ cursor: 'pointer', filter: useAI ? 'hue-rotate(90deg) brightness(1.2)' : 'none' }}
+              />
+            </div>
+            
+            <span className={`fw-bold small me-2 ${useAI ? 'text-success' : 'text-secondary'}`}>✨ AI Chef</span>
+            
+            <button 
+              className={`btn rounded-pill fw-bold px-4 transition-all ${useAI ? 'btn-outline-success border-2' : 'btn-outline-info border-2'}`} 
+              onClick={handleGeneratePlan}
+              disabled={isLoading}
+              style={{ letterSpacing: '0.5px' }}
+            >
+              {isLoading ? (
+                <><span className="spinner-border spinner-border-sm me-2"></span>Cooking...</>
+              ) : (
+                useAI ? 'GENERATE WITH AI' : 'GENERATE WEEK'
+              )}
+            </button>
+          </div>
         </div>
 
         {error && <div className="alert alert-danger shadow-sm"><strong>Oops!</strong> {error}</div>}
@@ -256,7 +286,17 @@ export default function Planner() {
             <div className="modal-content border-0 shadow-lg">
               
               <div className="modal-header bg-body-tertiary">
-                <h4 className="modal-title fw-bold text-primary">{selectedRecipe.title}</h4>
+                <div className="d-flex align-items-center gap-2">
+                  <h4 className="modal-title fw-bold text-primary mb-0">{selectedRecipe.title}</h4>
+                  
+                  {/* Badge Magico AI - Compare solo se sourceType è AI_GENERATED */}
+                  {selectedRecipe.sourceType === 'AI_GENERATED' && (
+                    <span className="badge text-dark border border-warning shadow-sm" style={{ background: 'linear-gradient(45deg, #FFD700, #FFA500)' }}>
+                      ✨ AI Chef Recipe
+                    </span>
+                  )}
+                </div>
+                
                 <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
               </div>
               
@@ -271,14 +311,26 @@ export default function Planner() {
                   <div className="col-md-6">
                     <h5 className="fw-bold border-bottom pb-2">🛒 Ingredients</h5>
                     <ul className="list-group list-group-flush small">
-                      {selectedRecipe.nutritionalInfo?.extendedIngredients?.map((ing, i) => (
+                      
+                      {/* Mappiamo ingredientsList (AI) oppure extendedIngredients (Spoonacular) */}
+                      {(selectedRecipe.nutritionalInfo?.ingredientsList || selectedRecipe.nutritionalInfo?.extendedIngredients)?.map((ing, i) => (
                         <li key={i} className="list-group-item px-0 py-1 border-0">
-                          • {ing.original}
+                          {/* Se c'è 'original' (Spoonacular), stampiamo quello. Altrimenti stampiamo i dati dell'AI */}
+                          {ing.original ? (
+                            <span>• {ing.original}</span>
+                          ) : (
+                            <span>
+                              <strong className="text-primary">{ing.amount} {ing.unit}</strong> <span className="text-capitalize">{ing.name}</span>
+                            </span>
+                          )}
                         </li>
                       ))}
-                      {(!selectedRecipe.nutritionalInfo?.extendedIngredients || selectedRecipe.nutritionalInfo.extendedIngredients.length === 0) && (
+
+                      {/* Fallback se non ci sono ingredienti da nessuna delle due fonti */}
+                      {(!selectedRecipe.nutritionalInfo?.ingredientsList && (!selectedRecipe.nutritionalInfo?.extendedIngredients || selectedRecipe.nutritionalInfo.extendedIngredients.length === 0)) && (
                         <li className="list-group-item px-0 py-1 border-0 text-muted fst-italic">Ingredients list not available from source.</li>
                       )}
+                      
                     </ul>
                   </div>
                   
