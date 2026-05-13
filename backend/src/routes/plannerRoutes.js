@@ -479,42 +479,62 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-2.5-flash",
       generationConfig: { responseMimeType: "application/json" }
     });
 
-    // 1. PROMPT IN INGLESE E PIÙ RIGIDO CON QUANTITÀ
     const prompt = `
-      You are an expert nutritionist and chef. Create a 7-day meal plan.
+      You are an expert nutritionist. Create a practical, highly varied weekly meal plan.
       Daily exact target: ${goal.dailyCalories} kcal, ${goal.dailyProtein}g protein, ${goal.dailyCarbs}g carbs, ${goal.dailyFat}g fat.
-      The user has these EXACT ingredients in their pantry: [${pantryNames}]. You MUST prioritize using these exact names to reduce waste.
+      Pantry ingredients to prioritize: [${pantryNames}].
 
-      Each day MUST contain exactly ${mealOrder.length} meals in this STRICT chronological order: ${mealOrderString}.
-      
-      Return EXCLUSIVELY a JSON array with this exact structure:
-      [
-        {
-          "dayIndex": 0,
-          "meals": [
-            {
-              "type": "BREAKFAST",
-              "title": "Recipe Title",
-              "calories": 400,
-              "protein": 30,
-              "carbs": 40,
-              "fat": 10,
-              "instructions": "Step-by-step instructions in clean HTML (e.g., <ol><li>...</li></ol>). Wrap ingredient names in <strong>.",
-              "ingredients": [ {"name": "chicken breast", "amount": 150, "unit": "g"} ],
-              "usedIngredients": ["exact pantry ingredient 1"], 
-              "missedIngredients": ["ingredient to buy"]
-            }
-          ]
-        }
-      ]
+      CRITICAL RULES: 
+      1. "usedIngredients" MUST contain the names of ingredients from the user's pantry that are used in the recipe.
+      2. "missedIngredients" MUST contain the names of ingredients needed that are NOT in the pantry.
+      3. Return EXCLUSIVELY a JSON object with EXACTLY this structure:
+      {
+        "breakfasts": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], 
+        "snacks": [ { "title": "...", "calories": 200, "protein": 10, "carbs": 20, "fat": 5, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], 
+        "lunches": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], 
+        "dinners": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ]  
+      }
+      Ensure the arrays have exactly 7, 4, 7, and 7 items respectively.
     `;
+
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-    const aiPlan = JSON.parse(responseText);
+    
+    // Ripuliamo da eventuali formattazioni markdown del JSON (Rende l'app a prova di crash)
+    const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const mealPool = JSON.parse(cleanJson);
+
+    // 2. ASSEMBLAGGIO ESATTO IN NODE.JS (Fulmineo)
+    const aiPlan = [];
+    let totalSnackCounter = 0;
+
+    for (let i = 0; i < 7; i++) {
+      const dailyMeals = [];
+      
+      mealOrder.forEach(type => {
+        if (type === 'BREAKFAST') {
+          // Fallback di sicurezza: se l'AI sbaglia e ne genera 6, peschiamo la prima per non far crashare nulla
+          const breakfast = mealPool.breakfasts[i] || mealPool.breakfasts[0];
+          dailyMeals.push({ type: 'BREAKFAST', ...breakfast });
+        } else if (type === 'SNACK') {
+          const snack = mealPool.snacks[totalSnackCounter % mealPool.snacks.length];
+          dailyMeals.push({ type: 'SNACK', ...snack });
+          totalSnackCounter++;
+        } else if (type === 'LUNCH') {
+          const lunch = mealPool.lunches[i] || mealPool.lunches[0];
+          dailyMeals.push({ type: 'LUNCH', ...lunch }); 
+        } else if (type === 'DINNER') {
+          const dinner = mealPool.dinners[i] || mealPool.dinners[0];
+          dailyMeals.push({ type: 'DINNER', ...dinner });
+        }
+      });
+      
+      aiPlan.push({ dayIndex: i, meals: dailyMeals });
+    }
 
     const today = new Date();
     today.setHours(12, 0, 0, 0);
