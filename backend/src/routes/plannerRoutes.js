@@ -26,8 +26,8 @@ router.get('/:userId', async (req, res) => {
 
     // --- MAGIA: Ricalcolo Dinamico degli Ingredienti ---
     // 1. Peschiamo la dispensa aggiornata in questo preciso istante
-    const pantry = await prisma.pantryItem.findMany({ 
-      where: { userId }, include: { ingredient: true } 
+    const pantry = await prisma.pantryItem.findMany({
+      where: { userId }, include: { ingredient: true }
     });
     const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
 
@@ -77,7 +77,7 @@ router.post('/generate', async (req, res) => {
     const mealSlots = buildMealSlots(goal);
     const breakfastTarget = mealSlots.find(s => s.mealType === 'BREAKFAST').targets;
     const lunchTarget = mealSlots.find(s => s.mealType === 'LUNCH').targets;
-    
+
     const snacksSlots = mealSlots.filter(s => s.mealType === 'SNACK');
     const snackCount = snacksSlots.length;
     const snackTarget = snackCount > 0 ? snacksSlots[0].targets : null;
@@ -106,10 +106,10 @@ router.post('/generate', async (req, res) => {
 
       if (pantryQuery) {
         const strictUrl = `${baseUrl}&includeIngredients=${encodeURIComponent(pantryQuery)}&sort=max-used-ingredients`;
-        
+
         const res = await fetch(strictUrl);
         const data = await res.json();
-        
+
         // Se troviamo un buon bacino di ricette con questi ingredienti, lo usiamo
         if (data.results && data.results.length >= (type === 'breakfast' ? 7 : 14)) {
           return data.results;
@@ -162,7 +162,7 @@ router.post('/generate', async (req, res) => {
 
     // 2. FASE DI INCASRTRO (TETRIS GIORNALIERO)
     for (let i = 0; i < days.length; i++) {
-      
+
       let remCals = goal.dailyCalories;
       let remPro = goal.dailyProtein;
       let remCarbs = goal.dailyCarbs;
@@ -190,7 +190,7 @@ router.post('/generate', async (req, res) => {
         remPro -= getMacro(s, 'Protein');
         remCarbs -= getMacro(s, 'Carbohydrates');
         remFat -= getMacro(s, 'Fat');
-        
+
         const snackSlot = (sIndex % 2 === 0 ? 20 : 40) + Math.floor(sIndex / 2);
         dailyMeals.push({ type: 'SNACK', slotIndex: snackSlot, data: s });
       }
@@ -212,10 +212,10 @@ router.post('/generate', async (req, res) => {
           const combinedFat = getMacro(l_cand, 'Fat') + getMacro(d_cand, 'Fat');
 
           // Errore sui macro: penalizziamo le deviazioni.
-          const error = Math.abs(combinedCals - remCals) + 
-                        Math.abs(combinedPro - remPro) * 4 + 
-                        Math.abs(combinedCarbs - remCarbs) * 4 + 
-                        Math.abs(combinedFat - remFat) * 9;
+          const error = Math.abs(combinedCals - remCals) +
+            Math.abs(combinedPro - remPro) * 4 +
+            Math.abs(combinedCarbs - remCarbs) * 4 +
+            Math.abs(combinedFat - remFat) * 9;
 
           // Se soddisfa il vincolo rigoroso delle 100 kcal
           if (Math.abs(combinedCals - remCals) <= 100) {
@@ -238,7 +238,7 @@ router.post('/generate', async (req, res) => {
       // Rimuoviamo gli elementi dal pool (rimuoviamo prima quello con indice maggiore per non sfalsare)
       const maxIndex = Math.max(selectedPair.indexL, selectedPair.indexD);
       const minIndex = Math.min(selectedPair.indexL, selectedPair.indexD);
-      
+
       mainPool.splice(maxIndex, 1);
       mainPool.splice(minIndex, 1);
 
@@ -255,7 +255,7 @@ router.post('/generate', async (req, res) => {
         let missed = [];
         const allIng = [...(recipeData.usedIngredients || []), ...(recipeData.missedIngredients || []), ...(recipeData.extendedIngredients || [])];
         const uniqueIng = Array.from(new Set(allIng.map(a => a.name))).map(n => allIng.find(a => a.name === n));
-        
+
         uniqueIng.forEach(ing => {
           const ingName = ing.name.toLowerCase();
           pantryNames.some(p => ingName.includes(p) || p.includes(ingName)) ? used.push(ing.name) : missed.push(ing.name);
@@ -266,10 +266,10 @@ router.post('/generate', async (req, res) => {
           where: { spoonacularId: recipeData.id },
           update: {
             instructions: recipeData.instructions,
-            nutritionalInfo: { 
-              usedIngredients: used, 
-              missedIngredients: missed, 
-              extendedIngredients: recipeData.extendedIngredients 
+            nutritionalInfo: {
+              usedIngredients: used,
+              missedIngredients: missed,
+              extendedIngredients: recipeData.extendedIngredients
             }
           },
           create: {
@@ -285,10 +285,10 @@ router.post('/generate', async (req, res) => {
             proteinGramsPerServing: getMacro(recipeData, 'Protein'),
             carbsGramsPerServing: getMacro(recipeData, 'Carbohydrates'),
             fatGramsPerServing: getMacro(recipeData, 'Fat'),
-            nutritionalInfo: { 
-              usedIngredients: used, 
-              missedIngredients: missed, 
-              extendedIngredients: recipeData.extendedIngredients 
+            nutritionalInfo: {
+              usedIngredients: used,
+              missedIngredients: missed,
+              extendedIngredients: recipeData.extendedIngredients
             }
           }
         });
@@ -300,7 +300,7 @@ router.post('/generate', async (req, res) => {
             mealType: mealData.type,
             slotIndex: mealData.slotIndex,
             recipeId: recipe.id,
-            isLocked: false 
+            isLocked: false
           }
         });
       }
@@ -323,13 +323,13 @@ router.put('/swap/:entryId', async (req, res) => {
     const currentEntry = await prisma.mealPlanEntry.findUnique({ where: { id: entryId }, include: { mealPlan: true } });
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
     const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
-    
+
     const pantry = await prisma.pantryItem.findMany({ where: { userId: currentEntry.mealPlan.userId }, include: { ingredient: true } });
     const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
     const pantryQuery = pantryNames.join(',');
 
-    const dayEntries = await prisma.mealPlanEntry.findMany({ 
-      where: { mealPlanId: currentEntry.mealPlanId, day: currentEntry.day, id: { not: entryId } }, include: { recipe: true } 
+    const dayEntries = await prisma.mealPlanEntry.findMany({
+      where: { mealPlanId: currentEntry.mealPlanId, day: currentEntry.day, id: { not: entryId } }, include: { recipe: true }
     });
 
     const usedCals = dayEntries.reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
@@ -347,7 +347,7 @@ router.put('/swap/:entryId', async (req, res) => {
 
     // CHIEDIAMO 15 RICETTE SENZA FILTRI SEVERI. Preveniamo il crash dell'API.
     let url = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=15&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true`;
-    
+
     if (dietaryProfile?.diets?.length) {
       url += `&diet=${dietaryProfile.diets.join(',')}`;
     }
@@ -364,18 +364,18 @@ router.put('/swap/:entryId', async (req, res) => {
     if (pantryQuery) {
       url += `&includeIngredients=${encodeURIComponent(pantryQuery)}&sort=max-used-ingredients`;
     }
-    
+
     const response = await fetch(url);
     const data = await response.json();
-    
+
     if (!data.results || data.results.length === 0) return res.status(400).json({ error: 'Nessuna ricetta trovata.' });
 
     const getMacro = (r, name) => r.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
 
     // LA MAGIA: Il nostro server Node.js ordina le 15 ricette mettendo in cima quella con l'errore matematico minore
     data.results.sort((a, b) => {
-      const errA = Math.abs(getMacro(a, 'Calories') - targetCals) + Math.abs(getMacro(a, 'Protein') - targetPro)*4 + Math.abs(getMacro(a, 'Carbohydrates') - targetCarb)*4 + Math.abs(getMacro(a, 'Fat') - targetFat)*9;
-      const errB = Math.abs(getMacro(b, 'Calories') - targetCals) + Math.abs(getMacro(b, 'Protein') - targetPro)*4 + Math.abs(getMacro(b, 'Carbohydrates') - targetCarb)*4 + Math.abs(getMacro(b, 'Fat') - targetFat)*9;
+      const errA = Math.abs(getMacro(a, 'Calories') - targetCals) + Math.abs(getMacro(a, 'Protein') - targetPro) * 4 + Math.abs(getMacro(a, 'Carbohydrates') - targetCarb) * 4 + Math.abs(getMacro(a, 'Fat') - targetFat) * 9;
+      const errB = Math.abs(getMacro(b, 'Calories') - targetCals) + Math.abs(getMacro(b, 'Protein') - targetPro) * 4 + Math.abs(getMacro(b, 'Carbohydrates') - targetCarb) * 4 + Math.abs(getMacro(b, 'Fat') - targetFat) * 9;
       return errA - errB;
     });
 
@@ -391,13 +391,13 @@ router.put('/swap/:entryId', async (req, res) => {
 
     const newRecipe = await prisma.recipe.upsert({
       where: { spoonacularId: rd.id },
-      update: { 
-        instructions: rd.instructions, 
-        nutritionalInfo: { 
+      update: {
+        instructions: rd.instructions,
+        nutritionalInfo: {
           usedIngredients: used,            // <-- FIX: Aggiunto!
           missedIngredients: missed,        // <-- FIX: Aggiunto!
-          extendedIngredients: rd.extendedIngredients 
-        } 
+          extendedIngredients: rd.extendedIngredients
+        }
       },
       create: {
         sourceType: 'SPOONACULAR', spoonacularId: rd.id, title: rd.title, imageUrl: rd.image,
@@ -435,31 +435,42 @@ router.patch('/entry/:entryId/toggle', async (req, res) => {
     res.status(500).json({ error: 'Failed to toggle status' });
   }
 });
-// IL MOTORE AI: Generazione del piano tramite LLM (Gemini)
+
 // IL MOTORE AI: Generazione del piano tramite LLM (Gemini)
 router.post('/generate-ai', async (req, res) => {
   try {
     const { userId } = req.body;
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId } });
     const pantry = await prisma.pantryItem.findMany({ where: { userId }, include: { ingredient: true } });
-    
+
     // Passiamo i nomi esatti della dispensa all'AI
     const pantryNames = pantry.map(p => p.ingredient.name).join(', ');
 
+    const mealSlots = buildMealSlots(goal);
+    const snackCount = mealSlots.filter(s => s.mealType === 'SNACK').length;
+
+    const mealOrder = ['BREAKFAST'];
+    if (snackCount > 0) mealOrder.push('SNACK');
+    mealOrder.push('LUNCH');
+    if (snackCount > 1) mealOrder.push('SNACK');
+    mealOrder.push('DINNER');
+    if (snackCount > 2) mealOrder.push('SNACK');
+    if (snackCount > 3) mealOrder.push('SNACK');
+    const mealOrderString = mealOrder.join(', ');
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ 
+    const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      generationConfig: { responseMimeType: "application/json" } 
+      generationConfig: { responseMimeType: "application/json" }
     });
 
-    // 1. PROMPT IN INGLESE E PIÙ RIGIDO
-// 1. PROMPT IN INGLESE E PIÙ RIGIDO CON QUANTITÀ
+    // 1. PROMPT IN INGLESE E PIÙ RIGIDO CON QUANTITÀ
     const prompt = `
       You are an expert nutritionist and chef. Create a 7-day meal plan.
       Daily exact target: ${goal.dailyCalories} kcal, ${goal.dailyProtein}g protein, ${goal.dailyCarbs}g carbs, ${goal.dailyFat}g fat.
       The user has these EXACT ingredients in their pantry: [${pantryNames}]. You MUST prioritize using these exact names to reduce waste.
 
-      Each day MUST contain exactly 5 meals in this STRICT chronological order: BREAKFAST, SNACK, LUNCH, SNACK, DINNER.
+      Each day MUST contain exactly ${mealOrder.length} meals in this STRICT chronological order: ${mealOrderString}.
       
       Return EXCLUSIVELY a JSON array with this exact structure:
       [
@@ -489,7 +500,7 @@ router.post('/generate-ai', async (req, res) => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
 
-    await prisma.mealPlan.deleteMany({ where: { userId: userId, endDate: { gte: new Date(new Date().setHours(0,0,0,0)) } } });
+    await prisma.mealPlan.deleteMany({ where: { userId: userId, endDate: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } });
 
     const endDate = new Date(today);
     endDate.setDate(today.getDate() + 6);
@@ -498,8 +509,8 @@ router.post('/generate-ai', async (req, res) => {
       data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
     });
 
-    // 2. DIZIONARIO IMMAGINI DINAMICHE
-// 2. IMMAGINI PLACEHOLDER TEMATICHE (Dark Theme + Testo + Emoji)
+
+    // 2. IMMAGINI PLACEHOLDER TEMATICHE (Dark Theme + Testo + Emoji)
     const mealImages = {
       BREAKFAST: '/assets/placeholders/breakfast_placeholder.png', // Corrisponde a image_0.png
       LUNCH: '/assets/placeholders/lunch_placeholder.png',         // Corrisponde a image_2.png
@@ -511,17 +522,17 @@ router.post('/generate-ai', async (req, res) => {
       let currentDate = new Date(today);
       currentDate.setDate(currentDate.getDate() + day.dayIndex);
 
-      let currentSlotIndex = 0; 
+      let currentSlotIndex = 0;
 
       for (const meal of day.meals) {
-        
+
         // Assegna l'immagine fissa in base al tipo di pasto
         const dynamicImage = mealImages[meal.type] || mealImages.LUNCH;
 
         const recipe = await prisma.recipe.create({
           data: {
             sourceType: 'AI_GENERATED',
-            spoonacularId: Math.floor(Math.random() * 1000000), 
+            spoonacularId: Math.floor(Math.random() * 1000000),
             title: meal.title,
             imageUrl: dynamicImage, // <-- Immagine Placeholder applicata
             instructions: meal.instructions,
@@ -529,8 +540,8 @@ router.post('/generate-ai', async (req, res) => {
             proteinGramsPerServing: meal.protein,
             carbsGramsPerServing: meal.carbs,
             fatGramsPerServing: meal.fat,
-            nutritionalInfo: { 
-              usedIngredients: meal.usedIngredients || [], 
+            nutritionalInfo: {
+              usedIngredients: meal.usedIngredients || [],
               missedIngredients: meal.missedIngredients || [],
               ingredientsList: meal.ingredients || []
             }
@@ -544,10 +555,10 @@ router.post('/generate-ai', async (req, res) => {
             mealType: meal.type,
             slotIndex: currentSlotIndex, // <-- Forza l'ordine: 0, 1, 2, 3, 4
             recipeId: recipe.id,
-            isLocked: false 
+            isLocked: false
           }
         });
-        
+
         currentSlotIndex++; // Incrementa per il pasto successivo dello stesso giorno
       }
     }
