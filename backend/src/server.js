@@ -1,5 +1,14 @@
 import express from 'express';
+import cors from 'cors';
 import prisma from './db.js';
+
+// Environment variable validation (Fail Fast)
+const requiredEnvVars = ['JWT_SECRET', 'GEMINI_API_KEY'];
+const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+if (missingVars.length > 0) {
+  console.error(`❌ FATAL ERROR: Missing required environment variables: ${missingVars.join(', ')}`);
+  process.exit(1);
+}
 
 import authRoutes from './routes/authRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
@@ -11,17 +20,12 @@ import plannerRoutes from './routes/plannerRoutes.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
+// CORS Setup: Only allow frontend origin in production, but here we allow the Vite dev server
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Add other allowed origins here
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(express.json());
 

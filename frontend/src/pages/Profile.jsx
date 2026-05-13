@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchWithAuth } from '../utils/api';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function Profile() {
 
     const fetchProfile = async () => {
       try {
-        const response = await fetch(`/api/profile/${user.id}`);
+        const response = await fetchWithAuth(`/api/profile/${user.id}`);
         if (response.ok) {
           const data = await response.json();
           setFormData({
@@ -216,7 +217,7 @@ export default function Profile() {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
 
-      const response = await fetch('/api/profile', {
+      const response = await fetchWithAuth('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

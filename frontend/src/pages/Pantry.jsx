@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchWithAuth } from '../utils/api';
 
 export default function Pantry() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export default function Pantry() {
     const fetchPantry = async () => {
       try {
         const user = JSON.parse(userString);
-        const response = await fetch(`/api/pantry/${user.id}`);
+        const response = await fetchWithAuth(`/api/pantry/${user.id}`);
         if (!response.ok) throw new Error('Failed to fetch pantry');
         setItems(await response.json());
       } catch (err) {
@@ -50,7 +51,7 @@ export default function Pantry() {
     const delayDebounceFn = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const response = await fetch(`/api/ingredients/autocomplete?query=${formData.name}`);
+        const response = await fetchWithAuth(`/api/ingredients/autocomplete?query=${formData.name}`);
         if (response.ok) {
           const data = await response.json();
           setSuggestions(data);
@@ -87,7 +88,7 @@ export default function Pantry() {
 
     try {
       const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch('/api/pantry', {
+      const response = await fetchWithAuth('/api/pantry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -113,7 +114,7 @@ export default function Pantry() {
 
   const handleDeleteItem = async (itemId) => {
     try {
-      const response = await fetch(`/api/pantry/${itemId}`, { method: 'DELETE' });
+      const response = await fetchWithAuth(`/api/pantry/${itemId}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Failed to delete item');
       setItems(items.filter(item => item.id !== itemId));
     } catch (err) {
@@ -127,7 +128,7 @@ export default function Pantry() {
 
   const handleSaveEdit = async (itemId) => {
     try {
-      const response = await fetch(`/api/pantry/${itemId}`, {
+      const response = await fetchWithAuth(`/api/pantry/${itemId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

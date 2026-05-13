@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchWithAuth } from '../utils/api';
 
 export default function Planner() {
   const navigate = useNavigate();
@@ -12,7 +13,7 @@ export default function Planner() {
   const fetchActivePlan = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch(`/api/planner/${user.id}`);
+      const response = await fetchWithAuth(`/api/planner/${user.id}`);
       if (response.ok) {
         const data = await response.json();
         setMealPlan(groupEntriesByDay(data.entries));
@@ -38,7 +39,7 @@ export default function Planner() {
           ? 'http://localhost:5001/api/planner/generate-ai' 
           : 'http://localhost:5001/api/planner/generate';
 
-        const response = await fetch(endpoint, {
+        const response = await fetchWithAuth(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: user.id })
@@ -56,7 +57,7 @@ export default function Planner() {
   const handleSwapRecipe = async (entryId) => {
     setSwappingId(entryId);
     try {
-      const response = await fetch(`/api/planner/swap/${entryId}`, { method: 'PUT' });
+      const response = await fetchWithAuth(`/api/planner/swap/${entryId}`, { method: 'PUT' });
       if (response.ok) await fetchActivePlan();
     } catch (error) {
       alert("Failed to swap recipe.");
@@ -79,7 +80,7 @@ export default function Planner() {
       setMealPlan(updatedPlan);
 
       // Chiamata in background per salvare nel DB
-      await fetch(`/api/planner/entry/${entryId}/toggle`, {
+      await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isLocked: !currentStatus })

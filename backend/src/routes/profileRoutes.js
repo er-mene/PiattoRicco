@@ -1,16 +1,14 @@
 import express from 'express';
 import prisma from '../db.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // 3. Save Nutritional Profile
-router.post('/', async (req, res) => {
-  // Riceviamo i dati dal frontend
-  const { userId, dailyCalories, dailyProtein, dailyCarbs, dailyFat } = req.body;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'User ID is required' });
-  }
+router.post('/', requireAuth, async (req, res) => {
+  // Ignoriamo l'ID passato dal frontend e usiamo quello del JWT
+  const userId = req.user.userId;
+  const { dailyCalories, dailyProtein, dailyCarbs, dailyFat } = req.body;
 
   try {
     // Upsert: Aggiorna se esiste, crea se non esiste
@@ -28,9 +26,14 @@ router.post('/', async (req, res) => {
 });
 
 // 4. Get Nutritional Profile
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
+    
+    // IDOR Protection: assicuriamoci che stia chiedendo il proprio profilo
+    if (userId !== req.user.userId) {
+      return res.status(403).json({ error: 'Forbidden: Cannot access other users data' });
+    }
     
     // Cerca l'obiettivo nutrizionale nel database
     const goal = await prisma.nutritionalGoal.findUnique({

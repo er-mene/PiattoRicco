@@ -1,12 +1,15 @@
 import express from 'express';
 import prisma from '../db.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // 1. Get all ingredients for a user
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
+    if (userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
+    
     const items = await prisma.pantryItem.findMany({
       where: { userId: userId },
       include: { ingredient: true }, // Importante: alleghiamo i dati dell'ingrediente!
@@ -20,12 +23,12 @@ router.get('/:userId', async (req, res) => {
 });
 
 // 2. Add a new ingredient to pantry
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
-    const { userId, name, quantity, unit } = req.body;
+    const userId = req.user.userId; // Use trusted ID
+    const { name, quantity, unit } = req.body;
     
-    // IL PROBLEMA ERA QUI: Abbiamo tolto !quantity e !unit
-    if (!userId || !name) {
+    if (!name) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -58,10 +61,14 @@ router.post('/', async (req, res) => {
   }
 });
 // NUOVA ROTTA: Update quantity and unit
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { quantity, unit } = req.body;
+    
+    // IDOR Check
+    const item = await prisma.pantryItem.findUnique({ where: { id } });
+    if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
     
     const updatedItem = await prisma.pantryItem.update({
       where: { id: id },
@@ -79,9 +86,14 @@ router.put('/:id', async (req, res) => {
   }
 });
 // 3. Delete an ingredient from pantry
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // IDOR Check
+    const item = await prisma.pantryItem.findUnique({ where: { id } });
+    if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
+    
     await prisma.pantryItem.delete({
       where: { id: id }
     });

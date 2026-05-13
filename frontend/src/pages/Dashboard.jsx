@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchWithAuth } from '../utils/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -21,11 +22,11 @@ export default function Dashboard() {
   const fetchDashboardData = async (userId) => {
     setIsLoading(true);
     try {
-      const goalRes = await fetch(`/api/profile/${userId}`);
+      const goalRes = await fetchWithAuth(`/api/profile/${userId}`);
       if (goalRes.ok) setGoals(await goalRes.json());
-      const pantryRes = await fetch(`/api/pantry/${userId}`);
+      const pantryRes = await fetchWithAuth(`/api/pantry/${userId}`);
       if (pantryRes.ok) setPantry(await pantryRes.json());
-      const planRes = await fetch(`/api/planner/${userId}`);
+      const planRes = await fetchWithAuth(`/api/planner/${userId}`);
       if (planRes.ok) {
         const planData = await planRes.json();
         setWeeklyPlan(planData); // Salviamo tutto il piano per la lista della spesa
@@ -44,7 +45,7 @@ export default function Dashboard() {
     const updatedMeals = todayMeals.map(m => m.id === entryId ? { ...m, isLocked: !currentStatus } : m);
     setTodayMeals(updatedMeals);
     try {
-      await fetch(`/api/planner/entry/${entryId}/toggle`, {
+      await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isLocked: !currentStatus })
@@ -85,7 +86,7 @@ export default function Dashboard() {
 
     const user = JSON.parse(localStorage.getItem('user'));
     try {
-      const res = await fetch(`/api/pantry`, {
+      const res = await fetchWithAuth(`/api/pantry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, name: itemName, quantity: null, unit: null })
@@ -93,7 +94,7 @@ export default function Dashboard() {
 
       if (res.ok) {
         // 2. Ricarichiamo la dispensa (l'elemento sparirà dalla lista magicamente)
-        const updated = await fetch(`/api/pantry/${user.id}`);
+        const updated = await fetchWithAuth(`/api/pantry/${user.id}`);
         setPantry(await updated.json());
       }
     } catch (error) { 

@@ -1,10 +1,11 @@
 import express from 'express';
 import { getApiKey } from '../utils/spoonacular.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Autocomplete Ingredients via Spoonacular
-router.get('/autocomplete', async (req, res) => {
+router.get('/autocomplete', requireAuth, async (req, res) => {
   try {
     const { query } = req.query;
     
