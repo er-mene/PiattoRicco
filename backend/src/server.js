@@ -14,7 +14,6 @@ import authRoutes from './routes/authRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import pantryRoutes from './routes/pantryRoutes.js';
 import ingredientsRoutes from './routes/ingredientsRoutes.js';
-import recipesRoutes from './routes/recipesRoutes.js';
 import plannerRoutes from './routes/plannerRoutes.js';
 
 const app = express();
@@ -34,7 +33,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/pantry', pantryRoutes);
 app.use('/api/ingredients', ingredientsRoutes);
-app.use('/api/recipes', recipesRoutes);
 app.use('/api/planner', plannerRoutes);
 
 const server = app.listen(PORT, () => {
