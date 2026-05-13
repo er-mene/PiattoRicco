@@ -598,7 +598,10 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
     }
 
     // Esegue tutte le query in batch in una singola transazione (Miglioramento Performance 10x)
-    await prisma.$transaction(transactionOperations);
+    await prisma.$transaction(transactionOperations, { 
+      maxWait: 5000, // Tempo massimo per connettersi al DB
+      timeout: 15000 // Tempo massimo per completare tutte le 70 scritture (20 secondi)
+    });
 
     res.status(201).json({ message: 'AI Plan generated perfectly!', mealPlanId: mealPlan.id });
   } catch (error) {
