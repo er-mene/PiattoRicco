@@ -8,6 +8,7 @@ import Pantry from './pages/Pantry';
 import Planner from './pages/Planner';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Favorites from './pages/Favorites';
 
 function App() {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ function App() {
               <Link className="nav-link" to="/">Dashboard</Link>
               <Link className="nav-link" to="/pantry">Pantry</Link>
               <Link className="nav-link" to="/planner">Meal Planner</Link>
+              <Link className="nav-link" to="/favorites">Favorites</Link>
               <Link className="nav-link" to="/profile">Profile</Link>
               
               {/* Logica condizionale per i bottoni di Auth */}
@@ -63,6 +65,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/pantry" element={<Pantry />} />
           <Route path="/planner" element={<Planner />} />
+          <Route path="/favorites" element={<Favorites />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

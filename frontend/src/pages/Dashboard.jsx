@@ -13,9 +13,16 @@ export default function Dashboard() {
   const [checkedGroceries, setCheckedGroceries] = useState(new Set());
   const [savingItems, setSavingItems] = useState(new Set());
   const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [favorites, setFavorites] = useState([]);
+
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) { navigate('/login'); return; }
+    
+    // Load favorites from local storage
+    const storedFavorites = JSON.parse(localStorage.getItem(`favorites_${user.id}`)) || [];
+    setFavorites(storedFavorites);
+    
     fetchDashboardData(user.id);
   }, [navigate]);
 
@@ -109,6 +116,27 @@ export default function Dashboard() {
     }
   };
 
+  const toggleFavorite = (e, recipe) => {
+    e.stopPropagation();
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user) return;
+    
+    const favKey = `favorites_${user.id}`;
+    const currentFavs = JSON.parse(localStorage.getItem(favKey)) || [];
+    
+    const isFav = currentFavs.some(f => f.id === recipe.id);
+    let updatedFavs;
+    if (isFav) {
+      updatedFavs = currentFavs.filter(f => f.id !== recipe.id);
+    } else {
+      updatedFavs = [...currentFavs, recipe];
+    }
+    
+    localStorage.setItem(favKey, JSON.stringify(updatedFavs));
+    setFavorites(updatedFavs);
+  };
+
+
   if (isLoading) return <div className="container mt-5 text-center"><h5>Loading Executive Dashboard...</h5></div>;
   if (!goals) return <div className="container mt-5 text-center"><h5>Please set your Nutritional Profile first.</h5></div>;
 
@@ -195,13 +223,21 @@ export default function Dashboard() {
                       style={{ height: '180px', objectFit: 'cover', opacity: entry.isLocked ? 0.5 : 1 }} 
                     />
                     <div 
-                      className="position-absolute top-0 end-0 p-2" 
+                      className="position-absolute top-0 end-0 p-2 d-flex gap-2" 
                       onClick={(e) => e.stopPropagation()}
                     >
+                      <button 
+                        className="btn btn-sm btn-light rounded-circle shadow-sm p-1 d-flex align-items-center justify-content-center"
+                        style={{ width: '32px', height: '32px', zIndex: 10 }}
+                        onClick={(e) => toggleFavorite(e, entry.recipe)}
+                        title="Add to Favorites"
+                      >
+                        {favorites.some(f => f.id === entry.recipe.id) ? '❤️' : '🤍'}
+                      </button>
                       <input 
                         type="checkbox" 
                         className="form-check-input shadow" 
-                        style={{ transform: 'scale(1.3)', cursor: 'pointer' }}
+                        style={{ transform: 'scale(1.3)', cursor: 'pointer', margin: '6px' }}
                         checked={entry.isLocked}
                         onChange={() => handleToggleEaten(entry.id, entry.isLocked)}
                       />

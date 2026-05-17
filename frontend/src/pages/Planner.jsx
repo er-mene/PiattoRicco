@@ -36,8 +36,8 @@ export default function Planner() {
         
         // MAGIA AI: Decidiamo quale rotta chiamare in base al toggle
         const endpoint = useAI 
-          ? 'http://localhost:5001/api/planner/generate-ai' 
-          : 'http://localhost:5001/api/planner/generate';
+          ? '/api/planner/generate-ai' 
+          : '/api/planner/generate';
 
         const response = await fetchWithAuth(endpoint, {
           method: 'POST',
