@@ -11,7 +11,9 @@ export default function Profile() {
     dailyCalories: 2000,
     dailyProtein: 150,
     dailyCarbs: 200,
-    dailyFat: 65
+    dailyFat: 65,
+    allergies: '',
+    intolerances: ''
   });
 
   const [locked, setLocked] = useState({
@@ -35,12 +37,14 @@ export default function Profile() {
         const response = await fetchWithAuth(`/api/profile/${user.id}`);
         if (response.ok) {
           const data = await response.json();
-          setFormData({
-            dailyCalories: data.dailyCalories,
-            dailyProtein: data.dailyProtein,
-            dailyCarbs: data.dailyCarbs,
-            dailyFat: data.dailyFat
-          });
+            setFormData({
+              dailyCalories: data.dailyCalories,
+              dailyProtein: data.dailyProtein,
+              dailyCarbs: data.dailyCarbs,
+              dailyFat: data.dailyFat,
+              allergies: data.allergies ? data.allergies.join(', ') : '',
+              intolerances: data.intolerances ? data.intolerances.join(', ') : ''
+            });
         }
       } catch (error) {
         console.error("Error loading profile:", error);
@@ -77,7 +81,15 @@ export default function Profile() {
     e.target.value = cleanValue;
 
     const name = e.target.name;
-    let newValue = Number(cleanValue);
+    let newValue;
+    
+    // Handle string inputs (allergies, intolerances) differently from numbers
+    if (name === 'allergies' || name === 'intolerances') {
+      setFormData({ ...formData, [name]: e.target.value });
+      return;
+    }
+    
+    newValue = Number(cleanValue);
 
     if (newValue < 0) {
       newValue = 0;
@@ -217,13 +229,17 @@ export default function Profile() {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
 
+      const payload = {
+        userId: user.id,
+        ...safeData,
+        allergies: safeData.allergies ? safeData.allergies.split(',').map(s => s.trim()).filter(s => s !== '') : [],
+        intolerances: safeData.intolerances ? safeData.intolerances.split(',').map(s => s.trim()).filter(s => s !== '') : []
+      };
+
       const response = await fetchWithAuth('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          ...safeData // Pass the safeData here, not formData!
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -358,6 +374,34 @@ export default function Profile() {
                     min="0"
                     readOnly={locked.dailyFat}
                   />
+                </div>
+              </div>
+
+              <div className="row g-3 mb-4 mt-1">
+                <div className="col-md-6">
+                  <label className="form-label fw-bold mb-2">Allergies</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    name="allergies" 
+                    value={formData.allergies} 
+                    onChange={handleChange}
+                    placeholder="e.g. Peanuts, Shellfish"
+                  />
+                  <div className="form-text">Comma-separated ingredients to strictly avoid.</div>
+                </div>
+
+                <div className="col-md-6">
+                  <label className="form-label fw-bold mb-2">Intolerances</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    name="intolerances" 
+                    value={formData.intolerances} 
+                    onChange={handleChange}
+                    placeholder="e.g. Dairy, Gluten"
+                  />
+                  <div className="form-text">Comma-separated dietary intolerances.</div>
                 </div>
               </div>
 

@@ -97,8 +97,9 @@ router.post('/generate', requireAuth, async (req, res) => {
       if (dietaryProfile?.diets?.length) {
         baseUrl += `&diet=${dietaryProfile.diets.join(',')}`;
       }
-      if (dietaryProfile?.intolerances?.length) {
-        baseUrl += `&intolerances=${dietaryProfile.intolerances.join(',')}`;
+      if (dietaryProfile?.intolerances?.length || dietaryProfile?.allergies?.length) {
+        const combined = [...(dietaryProfile?.intolerances || []), ...(dietaryProfile?.allergies || [])];
+        baseUrl += `&intolerances=${combined.join(',')}`;
       }
       if (dietaryProfile?.excludedIngredients?.length) {
         baseUrl += `&excludeIngredients=${dietaryProfile.excludedIngredients.join(',')}`;
@@ -367,8 +368,9 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
     if (dietaryProfile?.diets?.length) {
       url += `&diet=${dietaryProfile.diets.join(',')}`;
     }
-    if (dietaryProfile?.intolerances?.length) {
-      url += `&intolerances=${dietaryProfile.intolerances.join(',')}`;
+    if (dietaryProfile?.intolerances?.length || dietaryProfile?.allergies?.length) {
+      const combined = [...(dietaryProfile?.intolerances || []), ...(dietaryProfile?.allergies || [])];
+      url += `&intolerances=${combined.join(',')}`;
     }
     if (dietaryProfile?.excludedIngredients?.length) {
       url += `&excludeIngredients=${dietaryProfile.excludedIngredients.join(',')}`;
@@ -460,6 +462,7 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
   try {
     const userId = req.user.userId; // Trusted ID
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId } });
+    const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId } });
     const pantry = await prisma.pantryItem.findMany({ where: { userId }, include: { ingredient: true } });
 
     // Passiamo i nomi esatti della dispensa all'AI
@@ -487,6 +490,9 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
       You are an expert nutritionist. Create a practical, highly varied weekly meal plan.
       Daily exact target: ${goal.dailyCalories} kcal, ${goal.dailyProtein}g protein, ${goal.dailyCarbs}g carbs, ${goal.dailyFat}g fat.
       Pantry ingredients to prioritize: [${pantryNames}].
+      
+      ${dietaryProfile?.allergies?.length ? `STRICT ALLERGIES: ${dietaryProfile.allergies.join(', ')}. YOU MUST NOT USE THESE INGREDIENTS.` : ''}
+      ${dietaryProfile?.intolerances?.length ? `STRICT INTOLERANCES: ${dietaryProfile.intolerances.join(', ')}. YOU MUST NOT USE THESE INGREDIENTS.` : ''}
 
       CRITICAL RULES: 
       1. "usedIngredients" MUST contain the names of ingredients from the user's pantry that are used in the recipe.

@@ -8,7 +8,7 @@ const router = express.Router();
 router.post('/', requireAuth, async (req, res) => {
   // Ignoriamo l'ID passato dal frontend e usiamo quello del JWT
   const userId = req.user.userId;
-  const { dailyCalories, dailyProtein, dailyCarbs, dailyFat } = req.body;
+  const { dailyCalories, dailyProtein, dailyCarbs, dailyFat, allergies, intolerances } = req.body;
 
   try {
     // Upsert: Aggiorna se esiste, crea se non esiste
@@ -18,7 +18,13 @@ router.post('/', requireAuth, async (req, res) => {
       create: { userId, dailyCalories, dailyProtein, dailyCarbs, dailyFat }
     });
 
-    res.status(200).json({ message: 'Profile saved successfully', goal });
+    const dietaryProfile = await prisma.dietaryProfile.upsert({
+      where: { userId: userId },
+      update: { allergies: allergies || [], intolerances: intolerances || [] },
+      create: { userId, allergies: allergies || [], intolerances: intolerances || [] }
+    });
+
+    res.status(200).json({ message: 'Profile saved successfully', goal, dietaryProfile });
   } catch (error) {
     console.error('Error saving profile:', error.message);
     res.status(500).json({ error: 'Failed to save nutritional profile' });
@@ -40,12 +46,20 @@ router.get('/:userId', requireAuth, async (req, res) => {
       where: { userId: userId }
     });
 
+    const dietaryProfile = await prisma.dietaryProfile.findUnique({
+      where: { userId: userId }
+    });
+
     if (!goal) {
       // Se non esiste ancora, restituiamo un 404 (React userà i valori base)
       return res.status(404).json({ message: 'Profile not found' });
     }
 
-    res.status(200).json(goal);
+    res.status(200).json({
+      ...goal,
+      allergies: dietaryProfile?.allergies || [],
+      intolerances: dietaryProfile?.intolerances || []
+    });
   } catch (error) {
     console.error('Error fetching profile:', error.message);
     res.status(500).json({ error: 'Failed to fetch nutritional profile' });
