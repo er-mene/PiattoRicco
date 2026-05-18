@@ -74,12 +74,22 @@ export default function Dashboard() {
       ];
 
       allNeeded.forEach(ing => {
-        const ingName = ing.toLowerCase();
+        let ingName = ing.toLowerCase().trim();
+        
+        // Rimuoviamo quantità testuali tipo "2 cup of milk" -> "milk"
+        if (ingName.includes(" of ")) {
+          ingName = ingName.split(" of ").pop().trim();
+        }
+        // Rimuoviamo numeri, frazioni e unità di misura comuni all'inizio
+        ingName = ingName.replace(/^[\d\s\/\.,]+(cups?|tbsp|tsp|ounces?|oz|grams?|g|ml|liters?|l|lbs?|pounds?|pinch|dash|cloves?|slices?|pieces?|packages?|cans?|jars?|bottles?)?\s+/i, '').trim();
+
+        if (!ingName) return;
+
         // Verifichiamo se l'ingrediente è nella dispensa attuale
         const isInPantry = pantryNames.some(p => ingName.includes(p) || p.includes(ingName));
         
         if (!isInPantry) {
-          const displayName = ing.charAt(0).toUpperCase() + ing.slice(1);
+          const displayName = ingName.charAt(0).toUpperCase() + ingName.slice(1);
           items[displayName] = (items[displayName] || 0) + 1;
         }
       });
