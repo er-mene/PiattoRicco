@@ -331,12 +331,18 @@ router.post('/generate', requireAuth, async (req, res) => {
 
 // Swap 4.0: Ordinamento Matematico Locale (Zero Errori API)
 router.put('/swap/:entryId', requireAuth, async (req, res) => {
+  console.log("=== STARTING SWAP FOR ENTRY:", req.params.entryId, "===");
   try {
     const { entryId } = req.params;
     const apiKey = getApiKey();
 
-    const currentEntry = await prisma.mealPlanEntry.findUnique({ where: { id: entryId }, include: { mealPlan: true } });
-    if (!currentEntry || currentEntry.mealPlan.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
+    const currentEntry = await prisma.mealPlanEntry.findUnique({ where: { id: entryId }, include: { mealPlan: true, recipe: true } });
+    if (!currentEntry || currentEntry.mealPlan.userId !== req.user.userId) {
+      console.log("Error: Forbidden or Entry not found");
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    
+    console.log("Found current entry, Recipe Source:", currentEntry.recipe.sourceType);
 
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
     const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
@@ -360,44 +366,122 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
     const targetCarb = Math.max(5, goal.dailyCarbs - usedCarb);
     const targetFat = Math.max(5, goal.dailyFat - usedFat);
 
-    const type = currentEntry.mealType === 'BREAKFAST' ? 'breakfast' : 'main course';
+    let type = 'main course';
+    if (currentEntry.mealType === 'BREAKFAST') type = 'breakfast';
+    if (currentEntry.mealType === 'SNACK') type = 'snack';
+
+    const offset = Math.floor(Math.random() * 30); // Random offset to ensure variety on multiple swaps
 
     // CHIEDIAMO 15 RICETTE SENZA FILTRI SEVERI. Preveniamo il crash dell'API.
-    let url = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=15&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true`;
+    let url = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=15&offset=${offset}&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true`;
 
     if (dietaryProfile?.diets?.length) {
       url += `&diet=${dietaryProfile.diets.join(',')}`;
     }
+    const validSpoonacularIntolerances = ['dairy', 'egg', 'gluten', 'grain', 'peanut', 'seafood', 'sesame', 'shellfish', 'soy', 'sulfite', 'tree nut', 'wheat'];
+    let finalIntolerances = [];
+    let finalExclude = [...(dietaryProfile?.excludedIngredients || [])];
+
     if (dietaryProfile?.intolerances?.length || dietaryProfile?.allergies?.length) {
       const combined = [...(dietaryProfile?.intolerances || []), ...(dietaryProfile?.allergies || [])];
-      url += `&intolerances=${combined.join(',')}`;
+      combined.forEach(item => {
+        if (validSpoonacularIntolerances.includes(item.toLowerCase().trim())) {
+          finalIntolerances.push(item.trim());
+        } else {
+          finalExclude.push(item.trim());
+        }
+      });
     }
-    if (dietaryProfile?.excludedIngredients?.length) {
-      url += `&excludeIngredients=${dietaryProfile.excludedIngredients.join(',')}`;
+
+    if (finalIntolerances.length > 0) {
+      url += `&intolerances=${finalIntolerances.join(',')}`;
+    }
+    if (finalExclude.length > 0) {
+      url += `&excludeIngredients=${finalExclude.join(',')}`;
     }
     if (dietaryProfile?.preferredCuisines?.length) {
       url += `&cuisine=${dietaryProfile.preferredCuisines.join(',')}`;
     }
 
-    if (pantryQuery) {
-      url += `&includeIngredients=${encodeURIComponent(pantryQuery)}&sort=max-used-ingredients`;
+    // Spoonacular's `includeIngredients` uses a strict AND condition. 
+    // If we pass the whole pantry, it searches for a recipe containing EVERY SINGLE item!
+    // To prevent 0 results, we pick 1 random pantry item to prioritize.
+    if (pantryNames.length > 0) {
+      const randomIngredient = pantryNames[Math.floor(Math.random() * pantryNames.length)];
+      url += `&includeIngredients=${encodeURIComponent(randomIngredient)}`;
     }
 
-    const response = await fetch(url);
-    const data = await response.json();
+    console.log("Fetching Spoonacular URL:", url.replace(apiKey, 'HIDDEN_API_KEY'));
+    let response = await fetch(url);
+    let data = await response.json();
 
-    if (!data.results || data.results.length === 0) return res.status(400).json({ error: 'Nessuna ricetta trovata.' });
+    if (data.status === 'failure' || data.code === 402 || data.code === 401) {
+      console.log("Spoonacular API Error:", data.message);
+      return res.status(400).json({ error: `Errore Spoonacular: ${data.message}` });
+    }
+
+    if (!data.results || data.results.length === 0) {
+      console.log("No results with offset", offset, "falling back to 0");
+      if (offset > 0) {
+        url = url.replace(`offset=${offset}`, `offset=0`);
+        response = await fetch(url);
+        data = await response.json();
+      }
+      
+      if (!data.results || data.results.length === 0) {
+        console.log("Still no results. Trying without pantry ingredient...");
+        // Togliamo l'ingrediente della dispensa per ampliare la ricerca
+        if (url.includes('&includeIngredients=')) {
+          url = url.replace(/&includeIngredients=[^&]*/, '');
+          response = await fetch(url);
+          data = await response.json();
+        }
+      }
+
+      if (!data.results || data.results.length === 0) {
+        console.log("Still no results. Trying without diet/cuisine filters...");
+        // Togliamo dieta e cuisine (ma MANTENIAMO allergie/intolleranze per sicurezza!)
+        url = url.replace(/&diet=[^&]*/, '').replace(/&cuisine=[^&]*/, '');
+        console.log("Fallback 3 URL:", url.replace(apiKey, 'HIDDEN_API_KEY'));
+        response = await fetch(url);
+        data = await response.json();
+      }
+
+      if (!data.results || data.results.length === 0) {
+        console.log("Still no results. AS A LAST RESORT, dropping intolerances/allergies.");
+        // Se Spoonacular non ha letteralmente NIENTE, togliamo le intolleranze altrimenti il bottone è rotto.
+        // L'utente potrà verificare la ricetta manualmente.
+        url = url.replace(/&intolerances=[^&]*/, '').replace(/&excludeIngredients=[^&]*/, '');
+        console.log("Fallback 4 URL:", url.replace(apiKey, 'HIDDEN_API_KEY'));
+        response = await fetch(url);
+        data = await response.json();
+      }
+
+      if (!data.results || data.results.length === 0) {
+        console.log("Still no results. Returning 400");
+        return res.status(400).json({ error: 'Nessuna ricetta alternativa trovata, i filtri di intolleranza sono troppo stringenti.' });
+      }
+    }
+
+    console.log("Spoonacular returned", data.results.length, "results");
+
+    // Rimuoviamo la ricetta attuale per evitare di scambiarla con se stessa
+    const validResults = data.results.filter(r => r.id !== currentEntry.recipe.spoonacularId);
+    if (validResults.length === 0) {
+      console.log("No valid alternative results after filtering");
+      return res.status(400).json({ error: 'Nessuna ricetta alternativa trovata.' });
+    }
 
     const getMacro = (r, name) => r.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
 
-    // LA MAGIA: Il nostro server Node.js ordina le 15 ricette mettendo in cima quella con l'errore matematico minore
-    data.results.sort((a, b) => {
+    // LA MAGIA: Il nostro server Node.js ordina le ricette mettendo in cima quella con l'errore matematico minore
+    validResults.sort((a, b) => {
       const errA = Math.abs(getMacro(a, 'Calories') - targetCals) + Math.abs(getMacro(a, 'Protein') - targetPro) * 4 + Math.abs(getMacro(a, 'Carbohydrates') - targetCarb) * 4 + Math.abs(getMacro(a, 'Fat') - targetFat) * 9;
       const errB = Math.abs(getMacro(b, 'Calories') - targetCals) + Math.abs(getMacro(b, 'Protein') - targetPro) * 4 + Math.abs(getMacro(b, 'Carbohydrates') - targetCarb) * 4 + Math.abs(getMacro(b, 'Fat') - targetFat) * 9;
       return errA - errB;
     });
 
-    const rd = data.results[0]; // Prendiamo la vincitrice assoluta
+    const rd = validResults[0]; // Prendiamo la vincitrice assoluta
 
     // Calcolo Dispensa
     let used = [], missed = [];
@@ -605,7 +689,8 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
 
     sendEvent('status', { message: 'Saving to database...' });
 
-    const transactionOperations = [];
+    const recipesData = [];
+    const entriesData = [];
 
     for (const day of aiPlan) {
       let currentDate = new Date(today);
@@ -617,49 +702,40 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
         const dynamicImage = mealImages[meal.type] || mealImages.LUNCH;
         const recipeId = crypto.randomUUID();
 
-        transactionOperations.push(
-          prisma.recipe.create({
-            data: {
-              id: recipeId,
-              sourceType: 'AI_GENERATED',
-              spoonacularId: Math.floor(Math.random() * 1000000),
-              title: meal.title,
-              imageUrl: dynamicImage,
-              instructions: meal.instructions,
-              caloriesPerServing: meal.calories,
-              proteinGramsPerServing: meal.protein,
-              carbsGramsPerServing: meal.carbs,
-              fatGramsPerServing: meal.fat,
-              nutritionalInfo: {
-                usedIngredients: meal.usedIngredients || [],
-                missedIngredients: meal.missedIngredients || [],
-                ingredientsList: meal.ingredients || []
-              }
-            }
-          })
-        );
+        recipesData.push({
+          id: recipeId,
+          sourceType: 'AI_GENERATED',
+          spoonacularId: Math.floor(Math.random() * 1000000),
+          title: meal.title,
+          imageUrl: dynamicImage,
+          instructions: meal.instructions,
+          caloriesPerServing: meal.calories,
+          proteinGramsPerServing: meal.protein,
+          carbsGramsPerServing: meal.carbs,
+          fatGramsPerServing: meal.fat,
+          nutritionalInfo: {
+            usedIngredients: meal.usedIngredients || [],
+            missedIngredients: meal.missedIngredients || [],
+            ingredientsList: meal.ingredients || []
+          }
+        });
 
-        transactionOperations.push(
-          prisma.mealPlanEntry.create({
-            data: {
-              mealPlanId: mealPlan.id,
-              day: currentDate,
-              mealType: meal.type,
-              slotIndex: currentSlotIndex,
-              recipeId: recipeId,
-              isLocked: false
-            }
-          })
-        );
+        entriesData.push({
+          mealPlanId: mealPlan.id,
+          day: currentDate,
+          mealType: meal.type,
+          slotIndex: currentSlotIndex,
+          recipeId: recipeId,
+          isLocked: false
+        });
 
         currentSlotIndex++;
       }
     }
 
-    await prisma.$transaction(transactionOperations, {
-      maxWait: 5000,
-      timeout: 15000
-    });
+    // Eseguiamo due sole query massimizzate per inserire tutto, bypassando i limiti di timeout di Accelerate
+    await prisma.recipe.createMany({ data: recipesData });
+    await prisma.mealPlanEntry.createMany({ data: entriesData });
 
     sendEvent('complete', { message: 'AI Plan generated perfectly!', mealPlanId: mealPlan.id });
     res.end();

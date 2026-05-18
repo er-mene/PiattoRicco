@@ -100,7 +100,12 @@ export default function Planner() {
     setSwappingId(entryId);
     try {
       const response = await fetchWithAuth(`/api/planner/swap/${entryId}`, { method: 'PUT' });
-      if (response.ok) await fetchActivePlan();
+      if (response.ok) {
+        await fetchActivePlan();
+      } else {
+        const result = await response.json();
+        alert(result.error || "Failed to swap recipe.");
+      }
     } catch (error) {
       alert("Failed to swap recipe.");
     } finally {
