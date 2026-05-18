@@ -15,27 +15,29 @@ export function buildMealSlots(nutritionalGoal) {
 
   const snackShare = snackCount > 0 ? 0.1 : 0;
   const mainMealMultiplier = 1 - snackShare;
-  const mealSlots = MAIN_MEAL_TYPES.map((mealType) => ({
-    label: mealType,
-    mealType,
-    slotIndex: 0,
-    spoonacularType: mealType === 'BREAKFAST' ? 'breakfast' : 'main course',
-    shares: {
-      calories: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
-      protein: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
-      carbs: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
-      fat: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
-    },
-  }));
+  const perSnackShare = snackCount > 0 ? snackShare / snackCount : 0;
 
-  if (snackCount > 0) {
-    const perSnackShare = snackShare / snackCount;
+  const mealSlots = [];
+  let currentSnack = 0;
 
-    for (let index = 0; index < snackCount; index += 1) {
+  for (let i = 0; i < MAIN_MEAL_TYPES.length; i++) {
+    const mealType = MAIN_MEAL_TYPES[i];
+    mealSlots.push({
+      label: mealType,
+      mealType,
+      spoonacularType: mealType === 'BREAKFAST' ? 'breakfast' : 'main course',
+      shares: {
+        calories: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
+        protein: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
+        carbs: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
+        fat: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
+      },
+    });
+
+    if (currentSnack < snackCount) {
       mealSlots.push({
-        label: `SNACK_${index + 1}`,
+        label: `SNACK_${currentSnack + 1}`,
         mealType: 'SNACK',
-        slotIndex: index,
         spoonacularType: 'snack',
         shares: {
           calories: perSnackShare,
@@ -44,11 +46,28 @@ export function buildMealSlots(nutritionalGoal) {
           fat: perSnackShare,
         },
       });
+      currentSnack++;
     }
   }
 
-  return mealSlots.map((slot) => ({
+  while (currentSnack < snackCount) {
+    mealSlots.push({
+      label: `SNACK_${currentSnack + 1}`,
+      mealType: 'SNACK',
+      spoonacularType: 'snack',
+      shares: {
+        calories: perSnackShare,
+        protein: perSnackShare,
+        carbs: perSnackShare,
+        fat: perSnackShare,
+      },
+    });
+    currentSnack++;
+  }
+
+  return mealSlots.map((slot, index) => ({
     ...slot,
+    slotIndex: index,
     targets: {
       calories: Math.round(nutritionalGoal.dailyCalories * slot.shares.calories),
       protein: Math.round(nutritionalGoal.dailyProtein * slot.shares.protein),

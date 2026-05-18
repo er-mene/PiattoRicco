@@ -26,16 +26,16 @@ function App() {
     <div>
       <nav className="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
         <div className="container">
-          <Link className="navbar-brand fw-bold" to="/">🍽️ PiattoRicco</Link>
-          
-          <button 
-            className="navbar-toggler" 
-            type="button" 
+          <Link className="navbar-brand fw-bold" to="/"><img src="/assets/logo.png" alt="🍽️ PiattoRicco" height="80" className="d-inline-block align-top" /></Link>
+
+          <button
+            className="navbar-toggler"
+            type="button"
             onClick={() => setIsNavOpen(!isNavOpen)}
           >
             <span className="navbar-toggler-icon"></span>
           </button>
-          
+
           <div className={`collapse navbar-collapse ${isNavOpen ? 'show' : ''}`}>
             <div className="navbar-nav ms-auto text-center text-lg-start mt-3 mt-lg-0" onClick={() => setIsNavOpen(false)}>
               <Link className="nav-link" to="/">Dashboard</Link>
@@ -43,7 +43,7 @@ function App() {
               <Link className="nav-link" to="/planner">Meal Planner</Link>
               <Link className="nav-link" to="/favorites">Favorites</Link>
               <Link className="nav-link" to="/profile">Profile</Link>
-              
+
               {/* Logica condizionale per i bottoni di Auth */}
               {isAuthenticated ? (
                 <button onClick={handleLogout} className="btn btn-outline-light ms-3 btn-sm">

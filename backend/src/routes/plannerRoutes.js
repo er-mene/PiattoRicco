@@ -12,7 +12,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     if (userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -152,7 +152,7 @@ router.post('/generate', requireAuth, async (req, res) => {
     today.setHours(12, 0, 0, 0);
 
     await prisma.mealPlan.deleteMany({ where: { userId: userId, endDate: { gte: today } } });
-    
+
     // DB BLOAT FIX: Clean up orphaned recipes that have no meal plan entries left
     await prisma.recipe.deleteMany({
       where: {
@@ -337,7 +337,7 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
 
     const currentEntry = await prisma.mealPlanEntry.findUnique({ where: { id: entryId }, include: { mealPlan: true } });
     if (!currentEntry || currentEntry.mealPlan.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
-    
+
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
     const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
 
@@ -469,16 +469,8 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
     const pantryNames = pantry.map(p => p.ingredient.name).join(', ');
 
     const mealSlots = buildMealSlots(goal);
-    const snackCount = mealSlots.filter(s => s.mealType === 'SNACK').length;
-
-    const mealOrder = ['BREAKFAST'];
-    if (snackCount > 0) mealOrder.push('SNACK');
-    mealOrder.push('LUNCH');
-    if (snackCount > 1) mealOrder.push('SNACK');
-    mealOrder.push('DINNER');
-    if (snackCount > 2) mealOrder.push('SNACK');
-    if (snackCount > 3) mealOrder.push('SNACK');
-    const mealOrderString = mealOrder.join(', ');
+    const dailySnackCount = mealSlots.filter(s => s.mealType === 'SNACK').length;
+    const totalWeeklySnacks = dailySnackCount * 7;
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
@@ -499,17 +491,16 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
       2. "missedIngredients" MUST contain the names of ingredients needed that are NOT in the pantry.
       3. Return EXCLUSIVELY a JSON object with EXACTLY this structure:
       {
-        "breakfasts": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], 
-        "snacks": [ { "title": "...", "calories": 200, "protein": 10, "carbs": 20, "fat": 5, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], 
+        "breakfasts": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], ${dailySnackCount > 0 ? `\n        "snacks": [ { "title": "...", "calories": 200, "protein": 10, "carbs": 20, "fat": 5, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], ` : ''}
         "lunches": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], 
         "dinners": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ]  
       }
-      Ensure the arrays have exactly 7, 4, 7, and 7 items respectively.
+      Ensure the arrays have exactly 7, ${totalWeeklySnacks > 0 ? totalWeeklySnacks + ', 7, and 7' : '7, and 7'} items respectively.
     `;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-    
+
     // Ripuliamo da eventuali formattazioni markdown del JSON (Rende l'app a prova di crash)
     const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const mealPool = JSON.parse(cleanJson);
@@ -520,25 +511,25 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
 
     for (let i = 0; i < 7; i++) {
       const dailyMeals = [];
-      
-      mealOrder.forEach(type => {
-        if (type === 'BREAKFAST') {
+
+      mealSlots.forEach(slot => {
+        if (slot.mealType === 'BREAKFAST') {
           // Fallback di sicurezza: se l'AI sbaglia e ne genera 6, peschiamo la prima per non far crashare nulla
           const breakfast = mealPool.breakfasts[i] || mealPool.breakfasts[0];
           dailyMeals.push({ type: 'BREAKFAST', ...breakfast });
-        } else if (type === 'SNACK') {
+        } else if (slot.mealType === 'SNACK') {
           const snack = mealPool.snacks[totalSnackCounter % mealPool.snacks.length];
           dailyMeals.push({ type: 'SNACK', ...snack });
           totalSnackCounter++;
-        } else if (type === 'LUNCH') {
+        } else if (slot.mealType === 'LUNCH') {
           const lunch = mealPool.lunches[i] || mealPool.lunches[0];
-          dailyMeals.push({ type: 'LUNCH', ...lunch }); 
-        } else if (type === 'DINNER') {
+          dailyMeals.push({ type: 'LUNCH', ...lunch });
+        } else if (slot.mealType === 'DINNER') {
           const dinner = mealPool.dinners[i] || mealPool.dinners[0];
           dailyMeals.push({ type: 'DINNER', ...dinner });
         }
       });
-      
+
       aiPlan.push({ dayIndex: i, meals: dailyMeals });
     }
 
@@ -624,7 +615,7 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
     }
 
     // Esegue tutte le query in batch in una singola transazione (Miglioramento Performance 10x)
-    await prisma.$transaction(transactionOperations, { 
+    await prisma.$transaction(transactionOperations, {
       maxWait: 5000, // Tempo massimo per connettersi al DB
       timeout: 15000 // Tempo massimo per completare tutte le 70 scritture (20 secondi)
     });
