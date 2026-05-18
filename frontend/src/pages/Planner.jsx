@@ -10,6 +10,7 @@ export default function Planner() {
   const [error, setError] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [useAI, setUseAI] = useState(false);
+  const [progressMessage, setProgressMessage] = useState('');
   const fetchActivePlan = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -31,12 +32,12 @@ export default function Planner() {
   const handleGeneratePlan = async () => {
       setIsLoading(true);
       setError('');
+      setProgressMessage('');
       try {
         const user = JSON.parse(localStorage.getItem('user'));
-        
-        // MAGIA AI: Decidiamo quale rotta chiamare in base al toggle
-        const endpoint = useAI 
-          ? '/api/planner/generate-ai' 
+
+        const endpoint = useAI
+          ? '/api/planner/generate-ai'
           : '/api/planner/generate';
 
         const response = await fetchWithAuth(endpoint, {
@@ -45,13 +46,54 @@ export default function Planner() {
           body: JSON.stringify({ userId: user.id })
         });
 
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || result.message);
-        
-        window.location.reload(); 
+        if (useAI) {
+          const contentType = response.headers.get('Content-Type') || '';
+          if (contentType.includes('application/json')) {
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || result.message);
+            await fetchActivePlan();
+            setIsLoading(false);
+            return;
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            let idx;
+            while ((idx = buffer.indexOf('\n\n')) !== -1) {
+              const event = buffer.slice(0, idx);
+              buffer = buffer.slice(idx + 2);
+
+              const dataLine = event.split('\n').find(l => l.startsWith('data: '));
+              if (!dataLine) continue;
+
+              const data = JSON.parse(dataLine.slice(6));
+              if (data.type === 'status') {
+                setProgressMessage(data.message);
+              } else if (data.type === 'complete') {
+                await fetchActivePlan();
+                setIsLoading(false);
+                return;
+              } else if (data.type === 'error') {
+                throw new Error(data.message);
+              }
+            }
+          }
+        } else {
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || result.message);
+          await fetchActivePlan();
+          setIsLoading(false);
+        }
       } catch (err) {
         setError(err.message);
-        setIsLoading(false); // Assicurati di usare isLoading come nel tuo codice
+        setIsLoading(false);
       }
     };
   const handleSwapRecipe = async (entryId) => {
@@ -133,7 +175,7 @@ export default function Planner() {
               style={{ letterSpacing: '0.5px' }}
             >
               {isLoading ? (
-                <><span className="spinner-border spinner-border-sm me-2"></span>Cooking...</>
+                <><span className="spinner-border spinner-border-sm me-2"></span>{progressMessage || 'Cooking...'}</>
               ) : (
                 useAI ? 'GENERATE WITH AI' : 'GENERATE WEEK'
               )}

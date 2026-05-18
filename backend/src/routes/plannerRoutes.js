@@ -457,16 +457,31 @@ router.patch('/entry/:entryId/toggle', requireAuth, async (req, res) => {
   }
 });
 
-// IL MOTORE AI: Generazione del piano tramite LLM (Gemini)
+// IL MOTORE AI: Generazione del piano tramite LLM (Gemini) con streaming
 router.post('/generate-ai', requireAuth, async (req, res) => {
   try {
-    const userId = req.user.userId; // Trusted ID
+    const userId = req.user.userId;
+
+    // SSE headers for streaming progress
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const sendEvent = (type, data) => {
+      if (res.destroyed) return;
+      res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
+    };
+
+    sendEvent('status', { message: 'Loading your preferences...' });
+
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId } });
     const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId } });
     const pantry = await prisma.pantryItem.findMany({ where: { userId }, include: { ingredient: true } });
 
-    // Passiamo i nomi esatti della dispensa all'AI
     const pantryNames = pantry.map(p => p.ingredient.name).join(', ');
+    const pantryNamesLower = pantry.map(p => p.ingredient.name.toLowerCase());
 
     const mealSlots = buildMealSlots(goal);
     const dailySnackCount = mealSlots.filter(s => s.mealType === 'SNACK').length;
@@ -474,8 +489,8 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: { responseMimeType: "application/json" }
+      model: "gemini-3.1-flash-lite",
+      // Removed responseMimeType: "application/json" as it is unstable with generateContentStream
     });
 
     const prompt = `
@@ -486,26 +501,40 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
       ${dietaryProfile?.allergies?.length ? `STRICT ALLERGIES: ${dietaryProfile.allergies.join(', ')}. YOU MUST NOT USE THESE INGREDIENTS.` : ''}
       ${dietaryProfile?.intolerances?.length ? `STRICT INTOLERANCES: ${dietaryProfile.intolerances.join(', ')}. YOU MUST NOT USE THESE INGREDIENTS.` : ''}
 
-      CRITICAL RULES: 
-      1. "usedIngredients" MUST contain the names of ingredients from the user's pantry that are used in the recipe.
-      2. "missedIngredients" MUST contain the names of ingredients needed that are NOT in the pantry.
-      3. Return EXCLUSIVELY a JSON object with EXACTLY this structure:
+      IMPORTANT: The numbers in the JSON structure below are purely for demonstrating the expected format. Do NOT copy them. You MUST calculate and provide realistic, varied nutritional values for each individual meal based on its actual ingredients. Ensure the sum of the meals for each day matches the exact daily target.
+
+      Return EXCLUSIVELY a JSON object with EXACTLY this structure (use realistic values instead of the dummy 0s):
       {
-        "breakfasts": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], ${dailySnackCount > 0 ? `\n        "snacks": [ { "title": "...", "calories": 200, "protein": 10, "carbs": 20, "fat": 5, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], ` : ''}
-        "lunches": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ], 
-        "dinners": [ { "title": "...", "calories": 400, "protein": 30, "carbs": 40, "fat": 10, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":100,"unit":"g"}], "usedIngredients": ["item from pantry"], "missedIngredients": ["item to buy"] } ]  
+        "breakfasts": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],
+        ${dailySnackCount > 0 ? `"snacks": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],` : ''}
+        "lunches": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],
+        "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ]
       }
       Ensure the arrays have exactly 7, ${totalWeeklySnacks > 0 ? totalWeeklySnacks + ', 7, and 7' : '7, and 7'} items respectively.
     `;
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    sendEvent('status', { message: 'AI is generating your meal plan...' });
 
-    // Ripuliamo da eventuali formattazioni markdown del JSON (Rende l'app a prova di crash)
-    const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const streamingResult = await model.generateContentStream(prompt);
+
+    // FIX: Catch unhandled promise rejections on the aggregate response object to prevent Node from crashing
+    streamingResult.response.catch(() => { });
+
+    let fullResponse = '';
+    for await (const chunk of streamingResult.stream) {
+      fullResponse += chunk.text();
+      // Keep the connection alive to prevent Vercel/Render 504 timeouts during long generations
+      if (!res.destroyed) {
+        res.write(':\\n\\n');
+      }
+    }
+
+    sendEvent('status', { message: 'Processing AI response...' });
+
+    const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim();
     const mealPool = JSON.parse(cleanJson);
 
-    // 2. ASSEMBLAGGIO ESATTO IN NODE.JS (Fulmineo)
+    // Assemble weekly plan
     const aiPlan = [];
     let totalSnackCounter = 0;
 
@@ -514,7 +543,6 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
 
       mealSlots.forEach(slot => {
         if (slot.mealType === 'BREAKFAST') {
-          // Fallback di sicurezza: se l'AI sbaglia e ne genera 6, peschiamo la prima per non far crashare nulla
           const breakfast = mealPool.breakfasts[i] || mealPool.breakfasts[0];
           dailyMeals.push({ type: 'BREAKFAST', ...breakfast });
         } else if (slot.mealType === 'SNACK') {
@@ -533,17 +561,31 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
       aiPlan.push({ dayIndex: i, meals: dailyMeals });
     }
 
+    // Compute usedIngredients/missedIngredients server-side from pantry
+    for (const day of aiPlan) {
+      for (const meal of day.meals) {
+        const used = [];
+        const missed = [];
+        (meal.ingredients || []).forEach(ing => {
+          const name = ing.name.toLowerCase();
+          const inPantry = pantryNamesLower.some(p => name.includes(p) || p.includes(name));
+          inPantry ? used.push(ing.name) : missed.push(ing.name);
+        });
+        meal.usedIngredients = used;
+        meal.missedIngredients = missed;
+      }
+    }
+
+    sendEvent('status', { message: 'Building your weekly plan...' });
+
     const today = new Date();
     today.setHours(12, 0, 0, 0);
 
-    await prisma.mealPlan.deleteMany({ where: { userId: userId, endDate: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } });
+    await prisma.mealPlan.deleteMany({ where: { userId, endDate: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } });
 
-    // DB BLOAT FIX: Clean up orphaned recipes that have no meal plan entries left
     await prisma.recipe.deleteMany({
       where: {
-        mealPlanEntries: {
-          none: {}
-        }
+        mealPlanEntries: { none: {} }
       }
     });
 
@@ -554,14 +596,14 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
       data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
     });
 
-
-    // 2. IMMAGINI PLACEHOLDER TEMATICHE (Dark Theme + Testo + Emoji)
     const mealImages = {
-      BREAKFAST: '/assets/placeholders/breakfast_placeholder.png', // Corrisponde a image_0.png
-      LUNCH: '/assets/placeholders/lunch_placeholder.png',         // Corrisponde a image_2.png
-      SNACK: '/assets/placeholders/snack_placeholder.png',         // Corrisponde a image_1.png
-      DINNER: '/assets/placeholders/dinner_placeholder.png'         // Corrisponde a image_3.png
+      BREAKFAST: '/assets/placeholders/breakfast_placeholder.png',
+      LUNCH: '/assets/placeholders/lunch_placeholder.png',
+      SNACK: '/assets/placeholders/snack_placeholder.png',
+      DINNER: '/assets/placeholders/dinner_placeholder.png'
     };
+
+    sendEvent('status', { message: 'Saving to database...' });
 
     const transactionOperations = [];
 
@@ -614,16 +656,26 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
       }
     }
 
-    // Esegue tutte le query in batch in una singola transazione (Miglioramento Performance 10x)
     await prisma.$transaction(transactionOperations, {
-      maxWait: 5000, // Tempo massimo per connettersi al DB
-      timeout: 15000 // Tempo massimo per completare tutte le 70 scritture (20 secondi)
+      maxWait: 5000,
+      timeout: 15000
     });
 
-    res.status(201).json({ message: 'AI Plan generated perfectly!', mealPlanId: mealPlan.id });
+    sendEvent('complete', { message: 'AI Plan generated perfectly!', mealPlanId: mealPlan.id });
+    res.end();
   } catch (error) {
     console.error("AI Generation Error:", error);
-    res.status(500).json({ error: 'Failed to generate AI plan' });
+    const errorMsg = error.message || 'Failed to generate AI plan';
+    if (!res.headersSent) {
+      res.status(500).json({ error: errorMsg });
+    } else {
+      try {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: errorMsg })}\n\n`);
+        res.end();
+      } catch (e) {
+        // Connection already closed
+      }
+    }
   }
 });
 export default router;
