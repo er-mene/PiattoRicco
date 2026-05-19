@@ -8,6 +8,31 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// --- HISTORY ROUTE ---
+router.get('/history/:userId', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const historyEntries = await prisma.mealPlanEntry.findMany({
+      where: {
+        mealPlan: { userId: userId },
+        isLocked: true // Solo i pasti che l'utente ha mangiato
+      },
+      include: { recipe: true },
+      orderBy: [
+        { day: 'desc' },
+        { slotIndex: 'asc' }
+      ]
+    });
+
+    res.json(historyEntries);
+  } catch (error) {
+    console.error("Error fetching history:", error);
+    res.status(500).json({ error: 'Failed to fetch history' });
+  }
+});
+
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
