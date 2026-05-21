@@ -139,12 +139,18 @@ router.post('/generate', requireAuth, async (req, res) => {
 
     // Funzione ausiliaria per richiedere un lotto di ricette a Spoonacular
     const fetchPool = async (type, count, targetCals) => {
-      // Definisce una finestra calorica ampia per massimizzare i risultati dell'API.
-      // La precisione millimetrica sui macro verrà calcolata localmente nel passo successivo.
-      const minCals = Math.max(50, targetCals - 400);
-      const maxCals = targetCals + 400;
+      // Finestra calorica ristretta per ottenere ricette vicine al target.
+      // Macro constraints aggiuntivi per filtrare ricette in linea con obiettivi nutrizionali.
+      const minCals = Math.max(50, targetCals - 200);
+      const maxCals = targetCals + 200;
+      const minPro = Math.max(2, Math.round(targetCals * 0.10 / 4));
+      const maxPro = Math.round(targetCals * 0.50 / 4);
+      const minCarb = Math.max(2, Math.round(targetCals * 0.05 / 4));
+      const maxCarb = Math.round(targetCals * 0.65 / 4);
+      const minFat = Math.max(2, Math.round(targetCals * 0.10 / 9));
+      const maxFat = Math.round(targetCals * 0.55 / 9);
 
-      let baseUrl = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=${count}&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true&minCalories=${minCals}&maxCalories=${maxCals}`;
+      let baseUrl = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=${count}&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true&minCalories=${minCals}&maxCalories=${maxCals}&minProtein=${minPro}&maxProtein=${maxPro}&minCarbs=${minCarb}&maxCarbs=${maxCarb}&minFat=${minFat}&maxFat=${maxFat}`;
 
       if (dietaryProfile?.diets?.length) {
         baseUrl += `&diet=${dietaryProfile.diets.join(',')}`;
@@ -196,10 +202,31 @@ router.post('/generate', requireAuth, async (req, res) => {
       return uniqueNames.filter(ingName => pantryNames.some(p => ingName.includes(p) || p.includes(ingName))).length;
     };
 
-    const addScore = (pool) => pool.map(r => ({ ...r, pantryScore: getPantryScore(r) })).sort((a, b) => b.pantryScore - a.pantryScore);
-    const scoredBreakfast = addScore(breakfastPool);
-    const scoredMain = addScore(mainPool);
-    const scoredSnack = snackCount > 0 ? addScore(snackPool) : [];
+    // Utility per l'estrazione sicura dei macronutrienti dalla struttura dati di Spoonacular
+    const getMacro = (recipe, name) => recipe?.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
+
+    // Ordina colazione e snack per errore macro contro il target dello slot (minore = meglio),
+    // usando pantryScore come tiebreaker. I pasti principali usano solo pantryScore
+    // perché la combinazione ottimale verrà trovata tramite brute-force.
+    // Filtra le ricette prive di dati nutrizionali (calorie = 0) per evitare che macro fittizi
+    // corrompano i target residui durante l'assegnazione giornaliera
+    const withNutrition = (r) => getMacro(r, 'Calories') > 0;
+
+    const sortByPantryAndMacros = (pool, target) => pool
+      .filter(withNutrition)
+      .map(r => ({
+        ...r,
+        pantryScore: getPantryScore(r),
+        macroError: Math.abs(getMacro(r, 'Calories') - target.calories) +
+          Math.abs(getMacro(r, 'Protein') - target.protein) * 4 +
+          Math.abs(getMacro(r, 'Carbohydrates') - target.carbs) * 4 +
+          Math.abs(getMacro(r, 'Fat') - target.fat) * 9
+      }))
+      .sort((a, b) => a.macroError - b.macroError || b.pantryScore - a.pantryScore);
+
+    const scoredBreakfast = sortByPantryAndMacros(breakfastPool, breakfastTarget);
+    const scoredMain = mainPool.filter(withNutrition).map(r => ({ ...r, pantryScore: getPantryScore(r) })).sort((a, b) => b.pantryScore - a.pantryScore);
+    const scoredSnack = snackCount > 0 ? sortByPantryAndMacros(snackPool, snackTarget) : [];
 
     const today = new Date();
     today.setHours(12, 0, 0, 0);
@@ -222,9 +249,6 @@ router.post('/generate', requireAuth, async (req, res) => {
     const mealPlan = await prisma.mealPlan.create({
       data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
     });
-
-    // Utility per l'estrazione sicura dei macronutrienti dalla struttura dati di Spoonacular
-    const getMacro = (recipe, name) => recipe?.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
 
     let currentDate = new Date(today);
     const days = [0, 1, 2, 3, 4, 5, 6];
@@ -289,7 +313,11 @@ router.post('/generate', requireAuth, async (req, res) => {
             Math.abs(combinedFat - remFat) * 9;
 
           // Accetta solo combinazioni entro una devianza massima di 100 kcal
-          if (Math.abs(combinedCals - remCals) <= 100) {
+          // e con macros che non eccedano il target residuo oltre il 50% (previene coppie con macro sbilanciati)
+          if (Math.abs(combinedCals - remCals) <= 100 &&
+              combinedPro <= remPro * 1.5 + 15 &&
+              combinedCarbs <= remCarbs * 1.5 + 20 &&
+              combinedFat <= remFat * 1.5 + 10) {
             if (error < minError) {
               minError = error;
               bestPair = { indexL: x, indexD: y, l: l_cand, d: d_cand };
@@ -351,10 +379,10 @@ router.post('/generate', requireAuth, async (req, res) => {
             instructions: recipeData.instructions,
             readyInMinutes: recipeData.readyInMinutes || 30,
             servings: recipeData.servings || 1,
-            caloriesPerServing: getMacro(recipeData, 'Calories'),
-            proteinGramsPerServing: getMacro(recipeData, 'Protein'),
-            carbsGramsPerServing: getMacro(recipeData, 'Carbohydrates'),
-            fatGramsPerServing: getMacro(recipeData, 'Fat'),
+            caloriesPerServing: Math.round(getMacro(recipeData, 'Calories')),
+            proteinGramsPerServing: Math.round(getMacro(recipeData, 'Protein')),
+            carbsGramsPerServing: Math.round(getMacro(recipeData, 'Carbohydrates')),
+            fatGramsPerServing: Math.round(getMacro(recipeData, 'Fat')),
             nutritionalInfo: {
               usedIngredients: used,
               missedIngredients: missed,
@@ -433,8 +461,16 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
     // Offset randomico per assicurare varietà nei risultati in caso di swap multipli consecutivi
     const offset = Math.floor(Math.random() * 30); 
 
-    // URL base per l'API di Spoonacular. Si richiedono 15 ricette con tolleranza ampia sui macronutrienti
-    let url = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=15&offset=${offset}&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true`;
+    // URL base per l'API di Spoonacular. Vincoli calorici e macro per ottenere ricette vicine al target residuo
+    const swapMinCals = Math.max(50, targetCals - 200);
+    const swapMaxCals = targetCals + 200;
+    const swapMinPro = Math.max(2, Math.round(targetPro * 0.5));
+    const swapMaxPro = Math.round(targetPro * 1.5);
+    const swapMinCarb = Math.max(2, Math.round(targetCarb * 0.5));
+    const swapMaxCarb = Math.round(targetCarb * 1.5);
+    const swapMinFat = Math.max(2, Math.round(targetFat * 0.5));
+    const swapMaxFat = Math.round(targetFat * 1.5);
+    let url = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=15&offset=${offset}&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true&minCalories=${swapMinCals}&maxCalories=${swapMaxCals}&minProtein=${swapMinPro}&maxProtein=${swapMaxPro}&minCarbs=${swapMinCarb}&maxCarbs=${swapMaxCarb}&minFat=${swapMinFat}&maxFat=${swapMaxFat}`;
 
     if (dietaryProfile?.diets?.length) {
       url += `&diet=${dietaryProfile.diets.join(',')}`;
@@ -521,14 +557,13 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
 
     console.log("Spoonacular returned", data.results.length, "results");
 
-    // Filtra la ricetta correntemente assegnata per garantire una reale variazione nello swap
-    const validResults = data.results.filter(r => r.id !== currentEntry.recipe.spoonacularId);
+    // Filtra la ricetta correntemente assegnata e quelle senza dati nutrizionali
+    const getMacro = (r, name) => r.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
+    const validResults = data.results.filter(r => r.id !== currentEntry.recipe.spoonacularId && getMacro(r, 'Calories') > 0);
     if (validResults.length === 0) {
       console.log("No valid alternative results after filtering");
       return res.status(400).json({ error: 'Nessuna ricetta alternativa trovata.' });
     }
-
-    const getMacro = (r, name) => r.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
 
     // Algoritmo di Ordinamento Matematico Locale: 
     // Calcola il distacco di ogni potenziale ricetta dai macronutrienti target e porta in testa la più vicina.
@@ -561,8 +596,8 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
       create: {
         sourceType: 'SPOONACULAR', spoonacularId: rd.id, title: rd.title, imageUrl: rd.image,
         instructions: rd.instructions, readyInMinutes: rd.readyInMinutes || 30, servings: rd.servings || 1,
-        caloriesPerServing: getMacro(rd, 'Calories'), proteinGramsPerServing: getMacro(rd, 'Protein'),
-        carbsGramsPerServing: getMacro(rd, 'Carbohydrates'), fatGramsPerServing: getMacro(rd, 'Fat'),
+        caloriesPerServing: Math.round(getMacro(rd, 'Calories')), proteinGramsPerServing: Math.round(getMacro(rd, 'Protein')),
+        carbsGramsPerServing: Math.round(getMacro(rd, 'Carbohydrates')), fatGramsPerServing: Math.round(getMacro(rd, 'Fat')),
         nutritionalInfo: { usedIngredients: used, missedIngredients: missed, extendedIngredients: rd.extendedIngredients }
       }
     });
@@ -708,6 +743,24 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
         }
       });
 
+      // Calibrazione: se l'AI ha sforato il target calorico (> 50 kcal), scala proporzionalmente
+      const dayTotal = dailyMeals.reduce((sum, m) => sum + (m.calories || 0), 0);
+      if (dayTotal > goal.dailyCalories + 50) {
+        const scale = goal.dailyCalories / dayTotal;
+        dailyMeals.forEach(m => {
+          m.calories = Math.round((m.calories || 0) * scale);
+          m.protein = Math.round((m.protein || 0) * scale);
+          m.carbs = Math.round((m.carbs || 0) * scale);
+          m.fat = Math.round((m.fat || 0) * scale);
+        });
+        const finalSum = dailyMeals.reduce((s, m) => s + m.calories, 0);
+        const diff = goal.dailyCalories - finalSum;
+        if (Math.abs(diff) > 0 && Math.abs(diff) < 10) {
+          const largest = dailyMeals.reduce((a, b) => (a.calories > b.calories ? a : b));
+          largest.calories += diff;
+        }
+      }
+
       aiPlan.push({ dayIndex: i, meals: dailyMeals });
     }
 
@@ -775,10 +828,10 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
           title: meal.title,
           imageUrl: dynamicImage,
           instructions: meal.instructions,
-          caloriesPerServing: meal.calories,
-          proteinGramsPerServing: meal.protein,
-          carbsGramsPerServing: meal.carbs,
-          fatGramsPerServing: meal.fat,
+          caloriesPerServing: Math.round(meal.calories),
+          proteinGramsPerServing: Math.round(meal.protein),
+          carbsGramsPerServing: Math.round(meal.carbs),
+          fatGramsPerServing: Math.round(meal.fat),
           nutritionalInfo: {
             usedIngredients: meal.usedIngredients || [],
             missedIngredients: meal.missedIngredients || [],
