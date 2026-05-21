@@ -16,8 +16,7 @@ export default function Planner() {
   const [swappingId, setSwappingId] = useState(null);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   
-  // Toggle per scegliere tra AI Chef (Gemini) e generazione Standard (Spoonacular)
-  const [useAI, setUseAI] = useState(false);
+
 
   /**
    * Recupera il piano alimentare attivo dell'utente dal backend.
@@ -48,65 +47,53 @@ export default function Planner() {
       setError('');
       setProgressMessage('');
       try {
-        const user = JSON.parse(localStorage.getItem('user'));
-
-        // Selezione dinamica dell'endpoint in base al toggle "AI Chef"
-        const endpoint = useAI
-          ? '/api/planner/generate-ai'
-          : '/api/planner/generate';
-
-        const response = await fetchWithAuth(endpoint, {
+        const response = await fetchWithAuth('/api/planner/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id })
         });
 
-        if (useAI) {
-          const contentType = response.headers.get('Content-Type') || '';
-          if (contentType.includes('application/json')) {
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || result.message);
-            await fetchActivePlan();
-            setIsLoading(false);
-            return;
-          }
-
-          // Configurazione per leggere lo stream di eventi Server-Sent Events (SSE)
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break; // Fine dello stream
-            buffer += decoder.decode(value, { stream: true });
-
-            let idx;
-            while ((idx = buffer.indexOf('\n\n')) !== -1) {
-              const event = buffer.slice(0, idx);
-              buffer = buffer.slice(idx + 2);
-
-              const dataLine = event.split('\n').find(l => l.startsWith('data: '));
-              if (!dataLine) continue;
-
-              const data = JSON.parse(dataLine.slice(6));
-              if (data.type === 'status') {
-                setProgressMessage(data.message);
-              } else if (data.type === 'complete') {
-                await fetchActivePlan();
-                setIsLoading(false);
-                return;
-              } else if (data.type === 'error') {
-                throw new Error(data.message);
-              }
-            }
-          }
-        } else {
+        const contentType = response.headers.get('Content-Type') || '';
+        if (contentType.includes('application/json')) {
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || result.message);
           await fetchActivePlan();
           setIsLoading(false);
+          return;
         }
+
+        // Configurazione per leggere lo stream di eventi Server-Sent Events (SSE)
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let idx;
+          while ((idx = buffer.indexOf('\n\n')) !== -1) {
+            const event = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 2);
+
+            const dataLine = event.split('\n').find(l => l.startsWith('data: '));
+            if (!dataLine) continue;
+
+            const data = JSON.parse(dataLine.slice(6));
+            if (data.type === 'status') {
+              setProgressMessage(data.message);
+            } else if (data.type === 'complete') {
+              await fetchActivePlan();
+              setIsLoading(false);
+              return;
+            } else if (data.type === 'error') {
+              throw new Error(data.message);
+            }
+          }
+        }
+
+        await fetchActivePlan();
+        setIsLoading(false);
       } catch (err) {
         setError(err.message);
         setIsLoading(false);
@@ -177,35 +164,18 @@ export default function Planner() {
             style={{ background: '#1e1e1e', border: '1px solid #333' }}>
           <h2 className="mb-0 text-white fw-bold">📅 Advanced Planner</h2>
           
-          <div className="d-flex align-items-center gap-3 bg-dark p-2 px-3 rounded-pill border border-secondary shadow-sm">
-            <span className={`fw-bold small ${!useAI ? 'text-info' : 'text-secondary'}`}>Standard</span>
-            
-            <div className="form-check form-switch fs-5 mb-0">
-              <input 
-                className="form-check-input bg-secondary border-0 shadow-none" 
-                type="checkbox" 
-                role="switch" 
-                checked={useAI} 
-                onChange={(e) => setUseAI(e.target.checked)} 
-                style={{ cursor: 'pointer', filter: useAI ? 'hue-rotate(90deg) brightness(1.2)' : 'none' }}
-              />
-            </div>
-            
-            <span className={`fw-bold small me-2 ${useAI ? 'text-success' : 'text-secondary'}`}>✨ AI Chef</span>
-            
-            <button 
-              className={`btn rounded-pill fw-bold px-4 transition-all ${useAI ? 'btn-outline-success border-2' : 'btn-outline-info border-2'}`} 
-              onClick={handleGeneratePlan}
-              disabled={isLoading}
-              style={{ letterSpacing: '0.5px' }}
-            >
-              {isLoading ? (
-                <><span className="spinner-border spinner-border-sm me-2"></span>{progressMessage || 'Cooking...'}</>
-              ) : (
-                useAI ? 'GENERATE WITH AI' : 'GENERATE WEEK'
-              )}
-            </button>
-          </div>
+          <button 
+            className="btn btn-outline-success border-2 rounded-pill fw-bold px-4" 
+            onClick={handleGeneratePlan}
+            disabled={isLoading}
+            style={{ letterSpacing: '0.5px' }}
+          >
+            {isLoading ? (
+              <><span className="spinner-border spinner-border-sm me-2"></span>{progressMessage || 'Cooking...'}</>
+            ) : (
+              '✨ GENERATE PLAN'
+            )}
+          </button>
         </div>
 
         {error && <div className="alert alert-danger shadow-sm"><strong>Oops!</strong> {error}</div>}
@@ -377,22 +347,17 @@ export default function Planner() {
                   <div className="col-md-6">
                     <h5 className="fw-bold border-bottom pb-2">🛒 Ingredients</h5>
                     <ul className="list-group list-group-flush small">
-                      {/* Gestisce la struttura dati polimorfica: ingredientsList per Gemini, extendedIngredients per Spoonacular */}
-                      {(selectedRecipe.nutritionalInfo?.ingredientsList || selectedRecipe.nutritionalInfo?.extendedIngredients)?.map((ing, i) => (
+                      {selectedRecipe.nutritionalInfo?.ingredientsList?.map((ing, i) => (
                         <li key={i} className="list-group-item px-0 py-1 border-0">
-                          {ing.original ? (
-                            <span>• {ing.original}</span>
-                          ) : (
-                            <span>
-                              <strong className="text-primary">{ing.amount} {ing.unit}</strong> <span className="text-capitalize">{ing.name}</span>
-                            </span>
-                          )}
+                          <span>
+                            <strong className="text-primary">{ing.amount} {ing.unit}</strong> <span className="text-capitalize">{ing.name}</span>
+                          </span>
                         </li>
                       ))}
 
-                      {/* Fallback grafico in assenza di ingredienti */}
-                      {(!selectedRecipe.nutritionalInfo?.ingredientsList && (!selectedRecipe.nutritionalInfo?.extendedIngredients || selectedRecipe.nutritionalInfo.extendedIngredients.length === 0)) && (
-                        <li className="list-group-item px-0 py-1 border-0 text-muted fst-italic">Ingredients list not available from source.</li>
+                      {/* Fallback in assenza di ingredienti */}
+                      {(!selectedRecipe.nutritionalInfo?.ingredientsList || selectedRecipe.nutritionalInfo.ingredientsList.length === 0) && (
+                        <li className="list-group-item px-0 py-1 border-0 text-muted fst-italic">Ingredients list not available.</li>
                       )}
                       
                     </ul>

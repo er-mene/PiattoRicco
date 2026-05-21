@@ -36,7 +36,6 @@ export function buildMealSlots(nutritionalGoal) {
     mealSlots.push({
       label: mealType,
       mealType,
-      spoonacularType: mealType === 'BREAKFAST' ? 'breakfast' : 'main course',
       shares: {
         calories: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
         protein: MEAL_BASE_SHARES[mealType] * mainMealMultiplier,
@@ -49,7 +48,6 @@ export function buildMealSlots(nutritionalGoal) {
       mealSlots.push({
         label: `SNACK_${currentSnack + 1}`,
         mealType: 'SNACK',
-        spoonacularType: 'snack',
         shares: {
           calories: perSnackShare,
           protein: perSnackShare,
@@ -65,7 +63,6 @@ export function buildMealSlots(nutritionalGoal) {
     mealSlots.push({
       label: `SNACK_${currentSnack + 1}`,
       mealType: 'SNACK',
-      spoonacularType: 'snack',
       shares: {
         calories: perSnackShare,
         protein: perSnackShare,

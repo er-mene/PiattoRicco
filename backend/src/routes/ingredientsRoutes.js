@@ -1,18 +1,27 @@
 import express from 'express';
-import { getApiKey } from '../utils/spoonacular.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // -----------------------------------------------------------------------------
 // ROTTE DEGLI INGREDIENTI
-// Gestisce le chiamate esterne relative agli ingredienti (es. Autocomplete).
+// Gestisce le chiamate relative agli ingredienti (es. Autocomplete via AI).
 // -----------------------------------------------------------------------------
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: "gemini-2.5-flash-lite",
+  generationConfig: {
+    maxOutputTokens: 256,
+    temperature: 0.2,
+  },
+});
 
 /**
  * GET /autocomplete
  * Fornisce suggerimenti in tempo reale (autocomplete) mentre l'utente digita
- * il nome di un ingrediente nella dispensa. Interroga direttamente le API di Spoonacular.
+ * il nome di un ingrediente nella dispensa. Utilizza Gemini AI per generare suggerimenti.
  */
 router.get('/autocomplete', requireAuth, async (req, res) => {
   try {
@@ -23,19 +32,19 @@ router.get('/autocomplete', requireAuth, async (req, res) => {
       return res.json([]);
     }
 
-    const apiKey = getApiKey();
+    const prompt = `Suggest exactly 5 common food ingredients whose name starts with or closely matches: "${query}".
+Return ONLY a JSON array of objects with "name" and "id" fields. The "id" should be a unique integer.
+Example: [{"name":"chicken breast","id":1},{"name":"chickpeas","id":2}]
+Return ONLY the JSON array, no other text.`;
 
-    // Richiede a Spoonacular i 5 migliori suggerimenti basati sulla query
-    const spoonacularUrl = `https://api.spoonacular.com/food/ingredients/autocomplete?query=${query}&number=5&metaInformation=true&apiKey=${apiKey}`;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
     
-    // Effettua la richiesta HTTP esterna sfruttando la fetch nativa di Node.js
-    const response = await fetch(spoonacularUrl);
-    if (!response.ok) {
-      throw new Error(`Spoonacular API responded with status ${response.status}`);
-    }
+    // Parsing del JSON dalla risposta dell'AI, con gestione dei blocchi di codice markdown
+    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const suggestions = JSON.parse(cleanJson);
 
-    const data = await response.json();
-    res.status(200).json(data);
+    res.status(200).json(suggestions);
   } catch (error) {
     console.error('Error in autocomplete:', error.message);
     res.status(500).json({ error: 'Failed to fetch suggestions' });

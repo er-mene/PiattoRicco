@@ -125,21 +125,20 @@ export default function Favorites() {
                 />
 
                 <div className="row g-4">
-                  {/* Lista degli Ingredienti (Gestione polimorfica tra AI e Spoonacular) */}
+                  {/* Lista degli Ingredienti */}
                   <div className="col-md-5">
                     <h6 className="fw-bold mb-3 text-uppercase small text-muted">Ingredients</h6>
                     <ul className="list-group list-group-flush small">
-                      {(selectedRecipe.nutritionalInfo?.ingredientsList || selectedRecipe.nutritionalInfo?.extendedIngredients)?.map((ing, idx) => (
+                      {selectedRecipe.nutritionalInfo?.ingredientsList?.map((ing, idx) => (
                         <li key={idx} className="list-group-item px-0 border-light py-2">
-                          {ing.original ? (
-                            <span>• {ing.original}</span>
-                          ) : (
-                            <span>
-                              <strong className="text-primary">{ing.amount} {ing.unit}</strong> <span className="text-capitalize">{ing.name}</span>
-                            </span>
-                          )}
+                          <span>
+                            <strong className="text-primary">{ing.amount} {ing.unit}</strong> <span className="text-capitalize">{ing.name}</span>
+                          </span>
                         </li>
-                      )) || <li className="text-muted">No details available</li>}
+                      ))}
+                      {(!selectedRecipe.nutritionalInfo?.ingredientsList || selectedRecipe.nutritionalInfo.ingredientsList.length === 0) && (
+                        <li className="list-group-item px-0 border-light py-2 text-muted">No details available</li>
+                      )}
                     </ul>
                   </div>
 

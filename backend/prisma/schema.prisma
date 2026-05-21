@@ -6,20 +6,11 @@ datasource db {
   provider = "postgresql"
 }
 
-enum PlanType {
-  WEEKLY
-}
-
 enum MealType {
   BREAKFAST
   LUNCH
   DINNER
   SNACK
-}
-
-enum RecipeSource {
-  SPOONACULAR
-  AI_GENERATED
 }
 
 model User {
@@ -39,9 +30,7 @@ model DietaryProfile {
   id                  String   @id @default(uuid())
   userId              String   @unique
   diets               String[] @default([])
-  intolerances        String[] @default([])
-  allergies           String[] @default([])
-  excludedIngredients String[] @default([])
+  excludedIngredients String[] @default([]) 
   preferredCuisines   String[] @default([])
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -88,12 +77,8 @@ model PantryItem {
 
 model Recipe {
   id                     String       @id @default(uuid())
-  sourceType             RecipeSource
-  spoonacularId          Int?         @unique
   title                  String
   instructions           Json?
-  imageUrl               String?
-  sourceUrl              String?
   readyInMinutes         Int?
   servings               Int?
   caloriesPerServing     Float?
@@ -105,14 +90,11 @@ model Recipe {
   updatedAt              DateTime     @updatedAt
 
   mealPlanEntries MealPlanEntry[]
-
-  @@index([sourceType])
 }
 
 model MealPlan {
   id        String   @id @default(uuid())
   userId    String
-  planType  PlanType @default(WEEKLY)
   startDate DateTime
   endDate   DateTime
   createdAt DateTime @default(now())

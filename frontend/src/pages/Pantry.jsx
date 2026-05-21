@@ -10,9 +10,10 @@ export default function Pantry() {
   const [error, setError] = useState('');
 
   // Stati per la gestione della Dispensa e dell'interfaccia utente
-  const [suggestions, setSuggestions] = useState([]); // Risultati da Spoonacular API
+  const [suggestions, setSuggestions] = useState([]); // Risultati da AI autocomplete
   const [showSuggestions, setShowSuggestions] = useState(false); // Visibilità dropdown
   const [isSearching, setIsSearching] = useState(false); // Loader autocomplete
+  const [selectedIngredient, setSelectedIngredient] = useState(null); // Ingrediente selezionato validato
 
   // Stato per il form di aggiunta di un nuovo ingrediente
   const [formData, setFormData] = useState({
@@ -42,16 +43,14 @@ export default function Pantry() {
     fetchPantry();
   }, [navigate]);
 
-  /**
-   * Effetto di Debounce per la funzione di Autocomplete.
-   * Evita di sovraccaricare l'API ritardando la chiamata finché l'utente
-   * non smette di digitare per almeno 300 millisecondi.
-   */
   useEffect(() => {
+    let active = true;
+
     // Disattiva la ricerca se la query è inferiore a 2 caratteri
     if (formData.name.trim().length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
+      setIsSearching(false);
       return;
     }
 
@@ -60,35 +59,67 @@ export default function Pantry() {
       setIsSearching(true);
       try {
         const response = await fetchWithAuth(`/api/ingredients/autocomplete?query=${formData.name}`);
-        if (response.ok) {
+        if (response.ok && active) {
           const data = await response.json();
           setSuggestions(data);
           setShowSuggestions(true);
+
+          // Cerca una corrispondenza esatta case-insensitive nei suggerimenti restituiti
+          const match = data.find(s => s.name.toLowerCase() === formData.name.trim().toLowerCase());
+          if (match) {
+            setSelectedIngredient(match);
+          }
         }
       } catch (error) {
-        console.error("Autocomplete failed", error);
+        if (active) {
+          console.error("Autocomplete failed", error);
+        }
       } finally {
-        setIsSearching(false);
+        if (active) {
+          setIsSearching(false);
+        }
       }
     }, 300);
 
-    // Cleanup: Annulla il timer precedente se l'utente continua a digitare
-    return () => clearTimeout(delayDebounceFn);
+    // Cleanup: Annulla il timer precedente e invalida le richieste in corso
+    return () => {
+      active = false;
+      clearTimeout(delayDebounceFn);
+    };
   }, [formData.name]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    if (name === 'name') {
+      // Cerca una corrispondenza esatta case-insensitive nei suggerimenti correnti
+      const match = suggestions.find(s => s.name.toLowerCase() === value.trim().toLowerCase());
+      if (match) {
+        setSelectedIngredient(match);
+      } else {
+        setSelectedIngredient(null);
+      }
+    }
   };
 
   // Gestore della selezione di un suggerimento dal menu a tendina
-  const handleSelectSuggestion = (suggestionName) => {
-    setFormData({ ...formData, name: suggestionName });
+  const handleSelectSuggestion = (suggestion) => {
+    setFormData({ ...formData, name: suggestion.name });
+    setSelectedIngredient(suggestion);
     setShowSuggestions(false); // Nasconde i suggerimenti dopo la selezione
   };
 
   const handleAddItem = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim()) return;
+    const ingredientName = formData.name.trim();
+    if (!ingredientName) return;
+
+    // Forza l'accettazione solo di ingredienti dall'autocomplete
+    const isNameValid = selectedIngredient && selectedIngredient.name.toLowerCase() === ingredientName.toLowerCase();
+    if (!isNameValid) {
+      setError('Please select a valid ingredient from the suggestions list.');
+      return;
+    }
 
     setIsLoading(true);
     setError('');
@@ -101,7 +132,7 @@ export default function Pantry() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
-          name: formData.name, 
+          name: selectedIngredient.name, // Utilizza il nome validato
           // Gestione dei valori nulli per quantità e unità non specificate
           quantity: formData.quantity === '' ? null : formData.quantity,
           unit: formData.unit === '' ? null : formData.unit
@@ -116,6 +147,7 @@ export default function Pantry() {
       
       // Svuota solo il campo nome per consentire inserimenti in batch veloci
       setFormData({ ...formData, name: '' }); 
+      setSelectedIngredient(null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -157,6 +189,8 @@ export default function Pantry() {
       setError('Failed to update item.');
     }
   };
+  
+  const isNameValid = !!(selectedIngredient && selectedIngredient.name.toLowerCase() === formData.name.trim().toLowerCase());
 
   return (
     <div className="row justify-content-center mt-4">
@@ -176,7 +210,7 @@ export default function Pantry() {
               <div className="col-md-5 position-relative">
                 <input 
                   type="text" 
-                  className="form-control" 
+                  className={`form-control ${isNameValid ? 'is-valid' : ''}`} 
                   name="name"
                   placeholder="Ingredient (e.g. Chicken)" 
                   value={formData.name}
@@ -186,14 +220,27 @@ export default function Pantry() {
                   required
                 />
                 
-                {/* Spinner di caricamento visibile durante la query all'API */}
-                {isSearching && (
-                  <div className="position-absolute top-50 end-0 translate-middle-y pe-3">
+                {/* Spinner di caricamento o spunta di validità */}
+                {isSearching ? (
+                  <div className="position-absolute top-50 end-0 translate-middle-y pe-3" style={{ zIndex: 10 }}>
                     <span className="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
+                  </div>
+                ) : (
+                  isNameValid && (
+                    <div className="position-absolute top-50 end-0 translate-middle-y pe-3 text-success fw-bold" style={{ zIndex: 10 }} title="Ingredient validly selected">
+                      ✓
+                    </div>
+                  )
+                )}
+
+                {/* Messaggio di avviso se la query è valida ma non selezionata */}
+                {!isNameValid && formData.name.trim().length >= 2 && (
+                  <div className="text-warning small mt-1 ps-1" style={{ fontSize: '0.82rem' }}>
+                    ⚠️ Choose a suggestion from the list
                   </div>
                 )}
 
-                {/* Renderizzazione della tendina con i suggerimenti di Spoonacular */}
+                {/* Renderizzazione della tendina con i suggerimenti AI */}
                 {showSuggestions && suggestions.length > 0 && (
                   <ul className="list-group position-absolute w-100 shadow mt-1" style={{ zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
                     {suggestions.map((suggestion) => (
@@ -201,9 +248,8 @@ export default function Pantry() {
                         key={suggestion.id} 
                         className="list-group-item list-group-item-action text-capitalize"
                         style={{ cursor: 'pointer' }}
-                        onClick={() => handleSelectSuggestion(suggestion.name)}
+                        onClick={() => handleSelectSuggestion(suggestion)}
                       >
-                        {/* Qui si potrebbe implementare anche il render dell'immagine dell'ingrediente */}
                         {suggestion.name}
                       </li>
                     ))}
@@ -250,7 +296,7 @@ export default function Pantry() {
                 <button 
                   type="submit" 
                   className="btn btn-primary w-100 fw-bold"
-                  disabled={isLoading || !formData.name.trim()}
+                  disabled={isLoading || !isNameValid}
                 >
                   {isLoading ? '...' : 'Add'}
                 </button>
