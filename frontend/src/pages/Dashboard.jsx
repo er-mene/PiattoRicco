@@ -4,14 +4,18 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  // Stati principali dei dati della Dashboard
   const [todayMeals, setTodayMeals] = useState([]);
-  const [weeklyPlan, setWeeklyPlan] = useState(null); // NUOVO: Salviamo tutta la settimana
+  const [weeklyPlan, setWeeklyPlan] = useState(null);
   const [goals, setGoals] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pantry, setPantry] = useState([]);
-  // Stato locale per spuntare la lista della spesa
+  
+  // Stati per la gestione interattiva della lista della spesa
   const [checkedGroceries, setCheckedGroceries] = useState(new Set());
   const [savingItems, setSavingItems] = useState(new Set());
+  
+  // Stati per l'interazione UI (dettaglio ricette e preferiti)
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [favorites, setFavorites] = useState([]);
 
@@ -19,7 +23,7 @@ export default function Dashboard() {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) { navigate('/login'); return; }
     
-    // Load favorites from local storage
+    // Carica i preferiti dallo storage locale per il rendering immediato dell'icona a cuore
     const storedFavorites = JSON.parse(localStorage.getItem(`favorites_${user.id}`)) || [];
     setFavorites(storedFavorites);
     
@@ -36,7 +40,7 @@ export default function Dashboard() {
       const planRes = await fetchWithAuth(`/api/planner/${userId}`);
       if (planRes.ok) {
         const planData = await planRes.json();
-        setWeeklyPlan(planData); // Salviamo tutto il piano per la lista della spesa
+        setWeeklyPlan(planData); // Archivia l'intero piano settimanale per il calcolo della lista della spesa
         
         const todayStr = new Date().toDateString();
         const todaysEntries = planData.entries.filter(entry => 
@@ -48,9 +52,17 @@ export default function Dashboard() {
     setIsLoading(false);
   };
 
+  /**
+   * Cambia lo stato "Mangiato/Non Mangiato" del pasto.
+   * Utilizza l'Optimistic UI Update: aggiorna la vista immediatamente
+   * e poi esegue la richiesta in background per fluidità.
+   */
   const handleToggleEaten = async (entryId, currentStatus) => {
+    // 1. Aggiorna lo stato locale istantaneamente
     const updatedMeals = todayMeals.map(m => m.id === entryId ? { ...m, isLocked: !currentStatus } : m);
     setTodayMeals(updatedMeals);
+    
+    // 2. Persiste il cambiamento sul database asincronamente
     try {
       await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
@@ -60,14 +72,18 @@ export default function Dashboard() {
     } catch (error) { console.error("Failed to toggle status:", error); }
   };
 
-  // MOTORE LISTA DELLA SPESA: Estrae e conta gli ingredienti mancanti di tutta la settimana
+  /**
+   * Generatore Intelligente della Lista della Spesa.
+   * Calcola in tempo reale gli ingredienti mancanti confrontando l'intero piano
+   * settimanale con il contenuto attuale della dispensa dell'utente.
+   */
   const shoppingList = useMemo(() => {
     if (!weeklyPlan || !pantry) return [];
     const items = {};
     const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
 
     weeklyPlan.entries.forEach(entry => {
-      // Uniamo tutti gli ingredienti della ricetta per verificare cosa manca ADESSO
+      // Aggrega gli ingredienti richiesti ignorando quelli già in dispensa secondo il database
       const allNeeded = [
         ...(entry.recipe.nutritionalInfo?.usedIngredients || []),
         ...(entry.recipe.nutritionalInfo?.missedIngredients || [])
@@ -76,16 +92,17 @@ export default function Dashboard() {
       allNeeded.forEach(ing => {
         let ingName = ing.toLowerCase().trim();
         
-        // Rimuoviamo quantità testuali tipo "2 cup of milk" -> "milk"
+        // Normalizzazione del testo: Rimuove stringhe descrittive come "2 cup of milk" -> "milk"
         if (ingName.includes(" of ")) {
           ingName = ingName.split(" of ").pop().trim();
         }
-        // Rimuoviamo numeri, frazioni e unità di misura comuni all'inizio
+        
+        // Pulizia avanzata tramite RegEx: elimina numeri, frazioni e unità di misura comuni
         ingName = ingName.replace(/^[\d\s\/\.,]+(cups?|tbsp|tsp|ounces?|oz|grams?|g|ml|liters?|l|lbs?|pounds?|pinch|dash|cloves?|slices?|pieces?|packages?|cans?|jars?|bottles?)?\s+/i, '').trim();
 
         if (!ingName) return;
 
-        // Verifichiamo se l'ingrediente è nella dispensa attuale
+        // Se l'ingrediente ripulito non si trova in dispensa, viene aggiunto al conteggio della spesa
         const isInPantry = pantryNames.some(p => ingName.includes(p) || p.includes(ingName));
         
         if (!isInPantry) {
@@ -95,10 +112,10 @@ export default function Dashboard() {
       });
     });
     return Object.entries(items).map(([name, count]) => ({ name, count }));
-  }, [weeklyPlan, pantry]); // Si aggiorna ogni volta che cambia il piano o la dispensa
+  }, [weeklyPlan, pantry]); // Ricalcolo automatico ad ogni modifica del piano o della dispensa
 
   const toggleGroceryItem = async (itemName) => {
-    // 1. Mostriamo subito la spunta nell'interfaccia
+    // Aggiornamento Ottimistico: Segna l'elemento come in fase di salvataggio
     setSavingItems(prev => new Set(prev).add(itemName));
 
     const user = JSON.parse(localStorage.getItem('user'));
@@ -110,14 +127,14 @@ export default function Dashboard() {
       });
 
       if (res.ok) {
-        // 2. Ricarichiamo la dispensa (l'elemento sparirà dalla lista magicamente)
+        // Effettua un re-fetch della dispensa. L'ingrediente appena acquistato sparirà dalla lista spesa.
         const updated = await fetchWithAuth(`/api/pantry/${user.id}`);
         setPantry(await updated.json());
       }
     } catch (error) { 
       console.error(error); 
     } finally {
-      // 3. Puliamo lo stato (anche se l'elemento è sparito, è buona norma)
+      // Rimuove lo spinner/disabilitazione dall'elemento
       setSavingItems(prev => {
         const newSet = new Set(prev);
         newSet.delete(itemName);
@@ -126,8 +143,13 @@ export default function Dashboard() {
     }
   };
 
+  /**
+   * Gestisce l'aggiunta o la rimozione di una ricetta dai preferiti.
+   * Salva il nuovo stato in LocalStorage in modo da renderlo persistente e sincronizzato
+   * immediatamente tra i vari componenti (es. Dashboard e pagina Favorites).
+   */
   const toggleFavorite = (e, recipe) => {
-    e.stopPropagation();
+    e.stopPropagation(); // Evita di aprire il modale dei dettagli cliccando l'icona a cuore
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) return;
     
@@ -212,7 +234,7 @@ export default function Dashboard() {
       </div>
 
       <div className="row g-4 mb-5">
-        {/* COLONNA SINISTRA: I Pasti di Oggi */}
+        {/* Colonna di Sinistra: I Pasti Odierni */}
         <div className="col-lg-8">
           <h5 className="fw-bold mb-3">Your Meals</h5>
           {todayMeals.length === 0 ? (
@@ -269,7 +291,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* COLONNA DESTRA: Smart Grocery List */}
+        {/* Colonna di Destra: Lista della Spesa Dinamica */}
         <div className="col-lg-4">
           <div className="card shadow-sm border-0 rounded-4 h-100">
             <div className="card-header bg-body-tertiary border-bottom-0 pt-4 pb-0">
@@ -310,7 +332,7 @@ export default function Dashboard() {
       </div>
 
 
-      {/* RECIPE DETAIL MODAL */}
+      {/* Modale Dettagli Ricetta */}
       {selectedRecipe && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -336,7 +358,6 @@ export default function Dashboard() {
                 />
 
                 <div className="row g-4">
-                  {/* LISTA INGREDIENTI AGGIORNATA (AI + Spoonacular) */}
                   <div className="col-md-5">
                     <h6 className="fw-bold mb-3 text-uppercase small text-muted">Ingredients</h6>
                     <ul className="list-group list-group-flush small">

@@ -31,14 +31,12 @@ export default function Register() {
 
       const data = await response.json();
 
-// ... (il resto del codice sopra rimane uguale)
 
       if (!response.ok) {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Rimuovi l'alert.
-      // Reindirizza al login e passa il messaggio di successo nello "state" della rotta
+      // Naviga verso la vista di Login inoltrando un messaggio di benvenuto dinamico
       navigate('/login', { 
         state: { successMessage: 'Account created successfully! Welcome to Pantry Chef. Please log in.' } 
       });

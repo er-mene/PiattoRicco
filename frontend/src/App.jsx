@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 
-// Importiamo le nostre pagine
+// Importazione delle viste (Pagine) dell'applicazione
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import Pantry from './pages/Pantry';
@@ -14,7 +14,7 @@ import History from './pages/History';
 function App() {
   const navigate = useNavigate();
   const [isNavOpen, setIsNavOpen] = useState(false);
-  // Controlliamo in tempo reale se l'utente è loggato guardando il localStorage
+  // Verifica reattiva dello stato di autenticazione leggendo il JWT dal LocalStorage
   const isAuthenticated = !!localStorage.getItem('token');
 
   const handleLogout = () => {
@@ -46,7 +46,7 @@ function App() {
               <Link className="nav-link" to="/favorites">Favorites</Link>
               <Link className="nav-link" to="/profile">Profile</Link>
 
-              {/* Logica condizionale per i bottoni di Auth */}
+              {/* Rendering condizionale della barra di navigazione basato sullo stato di login */}
               {isAuthenticated ? (
                 <button onClick={handleLogout} className="btn btn-outline-light ms-3 btn-sm">
                   Log Out

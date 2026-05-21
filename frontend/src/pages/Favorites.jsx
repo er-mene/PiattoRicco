@@ -3,29 +3,38 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Favorites() {
   const navigate = useNavigate();
+  // Stato contenente l'array di ricette preferite (caricate dal localStorage)
   const [favorites, setFavorites] = useState([]);
+  
+  // Stato per gestire l'apertura del modale dei dettagli ricetta
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
+    // Redirect di sicurezza se l'utente non è autenticato
     if (!user) { navigate('/login'); return; }
     
-    // Load favorites from local storage
+    // Carica l'elenco delle ricette preferite dallo storage locale del browser
     const storedFavorites = JSON.parse(localStorage.getItem(`favorites_${user.id}`)) || [];
     setFavorites(storedFavorites);
   }, [navigate]);
 
+  /**
+   * Rimuove una ricetta dalla lista dei preferiti e aggiorna il LocalStorage.
+   */
   const removeFavorite = (e, recipeId) => {
-    e.stopPropagation();
+    e.stopPropagation(); // Evita il bubbling del click (non apre il modale della ricetta)
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) return;
     
     const favKey = `favorites_${user.id}`;
+    // Filtra l'array mantenendo solo gli elementi diversi da quello rimosso
     const updatedFavs = favorites.filter(f => f.id !== recipeId);
     
     localStorage.setItem(favKey, JSON.stringify(updatedFavs));
     setFavorites(updatedFavs);
     
+    // Chiude il modale automaticamente se la ricetta visualizzata viene rimossa
     if (selectedRecipe && selectedRecipe.id === recipeId) {
       setSelectedRecipe(null);
     }
@@ -90,7 +99,7 @@ export default function Favorites() {
         </div>
       </div>
 
-      {/* RECIPE DETAIL MODAL */}
+      {/* Modale Dettagli Ricetta Preferita */}
       {selectedRecipe && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -116,7 +125,7 @@ export default function Favorites() {
                 />
 
                 <div className="row g-4">
-                  {/* LISTA INGREDIENTI AGGIORNATA (AI + Spoonacular) */}
+                  {/* Lista degli Ingredienti (Gestione polimorfica tra AI e Spoonacular) */}
                   <div className="col-md-5">
                     <h6 className="fw-bold mb-3 text-uppercase small text-muted">Ingredients</h6>
                     <ul className="list-group list-group-flush small">

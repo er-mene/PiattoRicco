@@ -4,7 +4,17 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// 1. Get all ingredients for a user
+// -----------------------------------------------------------------------------
+// ROTTE DELLA DISPENSA (PANTRY)
+// Questo file espone gli endpoint per la gestione del magazzino ingredienti
+// personale dell'utente (CRUD operations).
+// -----------------------------------------------------------------------------
+
+/**
+ * GET /:userId
+ * Recupera tutti gli ingredienti presenti nella dispensa dell'utente.
+ * I risultati sono ordinati cronologicamente dal più recente.
+ */
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
@@ -12,7 +22,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
     
     const items = await prisma.pantryItem.findMany({
       where: { userId: userId },
-      include: { ingredient: true }, // Importante: alleghiamo i dati dell'ingrediente!
+      include: { ingredient: true }, // Assicura il caricamento dei dettagli dell'ingrediente relazionato
       orderBy: { createdAt: 'desc' }
     });
     res.status(200).json(items);
@@ -22,10 +32,14 @@ router.get('/:userId', requireAuth, async (req, res) => {
   }
 });
 
-// 2. Add a new ingredient to pantry
+/**
+ * POST /
+ * Aggiunge un nuovo ingrediente alla dispensa dell'utente.
+ * Se l'ingrediente globale (Dizionario Ingredienti) non esiste, lo crea al volo (Upsert).
+ */
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const userId = req.user.userId; // Use trusted ID
+    const userId = req.user.userId;
     const { name, quantity, unit } = req.body;
     
     if (!name) {
@@ -40,10 +54,9 @@ router.post('/', requireAuth, async (req, res) => {
       create: { name: ingredientName } 
     });
 
-// Sostituisci questo blocco in pantryRoutes.js
+    // Creazione della voce in dispensa collegando l'utente e l'ingrediente tramite relazioni Prisma
     const newItem = await prisma.pantryItem.create({
       data: { 
-        // Usiamo la sintassi 'connect' per le relazioni al posto dei semplici ID
         user: { connect: { id: userId } },
         ingredient: { connect: { id: ingredient.id } },
         quantity: (quantity === null || quantity === undefined) ? null : parseFloat(quantity),
@@ -60,20 +73,24 @@ router.post('/', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to add ingredient' });
   }
 });
-// NUOVA ROTTA: Update quantity and unit
+/**
+ * PUT /:id
+ * Aggiorna la quantità e/o l'unità di misura di un ingrediente già in dispensa.
+ * Permette di azzerare/svuotare i valori settandoli esplicitamente a null.
+ */
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { quantity, unit } = req.body;
     
-    // IDOR Check
+    // Controllo di Sicurezza (IDOR): verifica che l'elemento esista e appartenga all'utente chiamante
     const item = await prisma.pantryItem.findUnique({ where: { id } });
     if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
     
     const updatedItem = await prisma.pantryItem.update({
       where: { id: id },
       data: {
-        // Accetta valori vuoti o nulli convertendoli in null per il database
+        // La conversione garantisce che stringhe vuote vengano salvate come NULL nel DB
         quantity: (quantity === null || quantity === '' || quantity === undefined) ? null : parseFloat(quantity),
         unit: unit || null
       },
@@ -85,12 +102,15 @@ router.put('/:id', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to update ingredient' });
   }
 });
-// 3. Delete an ingredient from pantry
+/**
+ * DELETE /:id
+ * Rimuove definitivamente un ingrediente dalla dispensa dell'utente.
+ */
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     
-    // IDOR Check
+    // Controllo di Sicurezza (IDOR)
     const item = await prisma.pantryItem.findUnique({ where: { id } });
     if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
     

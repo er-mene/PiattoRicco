@@ -4,23 +4,27 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function Pantry() {
   const navigate = useNavigate();
+  // Array locale che contiene tutti gli ingredienti salvati in dispensa
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Stati per l'Autocomplete
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
+  // Stati per la gestione della Dispensa e dell'interfaccia utente
+  const [suggestions, setSuggestions] = useState([]); // Risultati da Spoonacular API
+  const [showSuggestions, setShowSuggestions] = useState(false); // Visibilità dropdown
+  const [isSearching, setIsSearching] = useState(false); // Loader autocomplete
 
+  // Stato per il form di aggiunta di un nuovo ingrediente
   const [formData, setFormData] = useState({
     name: '',
     quantity: '',
     unit: ''
   });
+  // Stati per la gestione della modifica "inline" sulla tabella (quantità e unità)
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ quantity: '', unit: '' });
-  // Caricamento della dispensa iniziale
+  
+  // Caricamento iniziale dei dati della dispensa dal database
   useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) return navigate('/login');
@@ -38,16 +42,20 @@ export default function Pantry() {
     fetchPantry();
   }, [navigate]);
 
-  // Effetto magico (Debounce) per l'Autocomplete
+  /**
+   * Effetto di Debounce per la funzione di Autocomplete.
+   * Evita di sovraccaricare l'API ritardando la chiamata finché l'utente
+   * non smette di digitare per almeno 300 millisecondi.
+   */
   useEffect(() => {
-    // Se la stringa è troppo corta, chiudiamo i suggerimenti
+    // Disattiva la ricerca se la query è inferiore a 2 caratteri
     if (formData.name.trim().length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
 
-    // Se stiamo digitando, impostiamo un timer di 300ms
+    // Inizializza il timer di debounce (300ms)
     const delayDebounceFn = setTimeout(async () => {
       setIsSearching(true);
       try {
@@ -64,7 +72,7 @@ export default function Pantry() {
       }
     }, 300);
 
-    // Se l'utente digita di nuovo prima dei 300ms, cancelliamo il timer precedente
+    // Cleanup: Annulla il timer precedente se l'utente continua a digitare
     return () => clearTimeout(delayDebounceFn);
   }, [formData.name]);
 
@@ -72,10 +80,10 @@ export default function Pantry() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Quando l'utente clicca un suggerimento dalla tendina
+  // Gestore della selezione di un suggerimento dal menu a tendina
   const handleSelectSuggestion = (suggestionName) => {
     setFormData({ ...formData, name: suggestionName });
-    setShowSuggestions(false); // Chiudiamo la tendina
+    setShowSuggestions(false); // Nasconde i suggerimenti dopo la selezione
   };
 
   const handleAddItem = async (e) => {
@@ -84,7 +92,7 @@ export default function Pantry() {
 
     setIsLoading(true);
     setError('');
-    setShowSuggestions(false); // Sicurezza: chiudi tendina al submit
+    setShowSuggestions(false); // Nasconde forzatamente la tendina in fase di salvataggio
 
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -94,7 +102,7 @@ export default function Pantry() {
         body: JSON.stringify({
           userId: user.id,
           name: formData.name, 
-          // Inviamo null se il box è vuoto
+          // Gestione dei valori nulli per quantità e unità non specificate
           quantity: formData.quantity === '' ? null : formData.quantity,
           unit: formData.unit === '' ? null : formData.unit
         })
@@ -102,8 +110,11 @@ export default function Pantry() {
 
       if (!response.ok) throw new Error('Failed to add ingredient');
 
+      // Aggiorna lo stato UI immettendo il nuovo oggetto restituito dall'API all'inizio dell'array
       const addedItem = await response.json();
       setItems([addedItem, ...items]);
+      
+      // Svuota solo il campo nome per consentire inserimenti in batch veloci
       setFormData({ ...formData, name: '' }); 
     } catch (err) {
       setError(err.message);
@@ -139,7 +150,7 @@ export default function Pantry() {
       if (!response.ok) throw new Error('Failed to update');
       const updatedItem = await response.json();
       
-      // Aggiorniamo la tabella e chiudiamo la modalità edit
+      // Aggiorna localmente l'elemento modificato per evitare di ricaricare l'intera lista
       setItems(items.map(item => item.id === itemId ? updatedItem : item));
       setEditingId(null);
     } catch (err) {
@@ -161,7 +172,7 @@ export default function Pantry() {
             {error && <div className="alert alert-danger">{error}</div>}
 
             <form onSubmit={handleAddItem} className="row g-2 mb-4 align-items-center">
-              {/* Contenitore Relativo per posizionare il menu a tendina */}
+              {/* Contenitore Relativo per il posizionamento corretto del menu a tendina Absolute */}
               <div className="col-md-5 position-relative">
                 <input 
                   type="text" 
@@ -170,19 +181,19 @@ export default function Pantry() {
                   placeholder="Ingredient (e.g. Chicken)" 
                   value={formData.name}
                   onChange={handleChange}
-                  autoComplete="off" // Disabilitiamo l'autocomplete nativo del browser
+                  autoComplete="off" // Disabilita l'autocompletamento di default del browser
                   disabled={isLoading}
                   required
                 />
                 
-                {/* Loader per la ricerca in tempo reale */}
+                {/* Spinner di caricamento visibile durante la query all'API */}
                 {isSearching && (
                   <div className="position-absolute top-50 end-0 translate-middle-y pe-3">
                     <span className="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
                   </div>
                 )}
 
-                {/* Il Menu a tendina dei suggerimenti */}
+                {/* Renderizzazione della tendina con i suggerimenti di Spoonacular */}
                 {showSuggestions && suggestions.length > 0 && (
                   <ul className="list-group position-absolute w-100 shadow mt-1" style={{ zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
                     {suggestions.map((suggestion) => (
@@ -192,7 +203,7 @@ export default function Pantry() {
                         style={{ cursor: 'pointer' }}
                         onClick={() => handleSelectSuggestion(suggestion.name)}
                       >
-                        {/* Se Spoonacular manda l'immagine, potremmo persino farla vedere! */}
+                        {/* Qui si potrebbe implementare anche il render dell'immagine dell'ingrediente */}
                         {suggestion.name}
                       </li>
                     ))}
@@ -200,23 +211,23 @@ export default function Pantry() {
                 )}
               </div>
               
-{/* Campo Quantità */}
+              {/* Campo Input per la Quantità */}
               <div className="col-md-3">
                 <input 
                   type="number" 
                   className="form-control" 
                   name="quantity"
-                  placeholder="Quantity" // Scritta in grigio quando è vuoto
+                  placeholder="Quantity" // Etichetta placeholder
                   min="0.1"
                   step="0.1"
                   value={formData.quantity}
                   onChange={handleChange}
                   disabled={isLoading}
-                  /* required rimosso per permettere l'invio vuoto */
+                  /* Nota: il campo 'required' è stato volutamente rimosso per supportare l'inserimento senza quantità */
                 />
               </div>
 
-              {/* Campo Unità */}
+              {/* Dropdown per la Selezione dell'Unità di Misura */}
               <div className="col-md-2">
                 <select 
                   className={`form-select ${formData.unit === '' ? 'text-muted' : ''}`} 
@@ -225,7 +236,7 @@ export default function Pantry() {
                   onChange={handleChange}
                   disabled={isLoading}
                 >
-                  <option value="">Unit</option> {/* Opzione di default */}
+                  <option value="">Unit</option> {/* Valore neutro (null) */}
                   <option value="pieces">pcs</option>
                   <option value="g">g</option>
                   <option value="kg">kg</option>
@@ -269,7 +280,7 @@ export default function Pantry() {
                           {item.ingredient.name}
                         </td>
                         
-                        {/* 1. NUOVO TD PER QUANTITÀ E UNITÀ (con box di modifica) */}
+                        {/* Colonna: Visualizzazione e Modifica di Quantità/Unità */}
                         <td>
                           {editingId === item.id ? (
                             <div className="d-flex gap-2">
@@ -290,7 +301,7 @@ export default function Pantry() {
                           )}
                         </td>
                         
-                        {/* 2. NUOVO TD PER I BOTTONI (Edit, Save, Remove) */}
+                        {/* Colonna: Pulsanti di Azione (Modifica, Salva, Rimuovi) */}
                         <td className="text-end">
                           {editingId === item.id ? (
                             <button type="button" className="btn btn-sm btn-success me-2" onClick={() => handleSaveEdit(item.id)}>Save</button>

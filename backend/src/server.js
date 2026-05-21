@@ -2,7 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import prisma from './db.js';
 
-// Environment variable validation (Fail Fast)
+// -----------------------------------------------------------------------------
+// PUNTO DI INGRESSO DELL'APPLICAZIONE (SERVER)
+// Configura l'ambiente Express, i middleware (CORS, JSON) e avvia il server in ascolto.
+// -----------------------------------------------------------------------------
+
+// Validazione preventiva delle variabili d'ambiente (Pattern Fail-Fast)
+// Interrompe immediatamente l'avvio del server se mancano chiavi critiche.
 const requiredEnvVars = ['JWT_SECRET', 'GEMINI_API_KEY'];
 const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 if (missingVars.length > 0) {
@@ -19,7 +25,8 @@ import plannerRoutes from './routes/plannerRoutes.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS Setup: Only allow frontend origin in production, but here we allow the Vite dev server
+// Configurazione CORS (Cross-Origin Resource Sharing)
+// Permette esclusivamente le richieste provenienti dai server di sviluppo frontend autorizzati.
 app.use(cors({
   origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Add other allowed origins here
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -28,7 +35,7 @@ app.use(cors({
 
 app.use(express.json());
 
-// Register API routes
+// Registrazione dei moduli di routing dell'API (Endpoints)
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/pantry', pantryRoutes);
@@ -39,6 +46,8 @@ const server = app.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
 });
 
+// Gestione pulita dell'arresto del server (Graceful Shutdown)
+// Assicura la corretta disconnessione dal database in caso di chiusura manuale (Ctrl+C).
 process.on('SIGINT', async () => {
   server.close();
   await prisma.$disconnect();

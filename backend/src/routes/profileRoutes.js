@@ -4,14 +4,24 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// 3. Save Nutritional Profile
+// -----------------------------------------------------------------------------
+// ROTTE DEL PROFILO UTENTE E OBIETTIVI NUTRIZIONALI
+// Questo file gestisce le operazioni di salvataggio e recupero dei parametri
+// dietetici dell'utente (calorie, macronutrienti, allergie e intolleranze).
+// -----------------------------------------------------------------------------
+
+/**
+ * POST /
+ * Salva o aggiorna il profilo nutrizionale e le preferenze dietetiche dell'utente.
+ * Utilizza l'operazione di upsert per creare un nuovo record se non esiste,
+ * oppure aggiornarlo se è già presente. L'ID utente viene estratto in modo sicuro
+ * dal token JWT per prevenire manomissioni.
+ */
 router.post('/', requireAuth, async (req, res) => {
-  // Ignoriamo l'ID passato dal frontend e usiamo quello del JWT
   const userId = req.user.userId;
   const { dailyCalories, dailyProtein, dailyCarbs, dailyFat, allergies, intolerances } = req.body;
 
   try {
-    // Upsert: Aggiorna se esiste, crea se non esiste
     const goal = await prisma.nutritionalGoal.upsert({
       where: { userId: userId },
       update: { dailyCalories, dailyProtein, dailyCarbs, dailyFat },
@@ -31,17 +41,22 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-// 4. Get Nutritional Profile
+/**
+ * GET /:userId
+ * Recupera il profilo nutrizionale completo (inclusi gli obiettivi calorici
+ * e le intolleranze) di uno specifico utente. Implementa un controllo IDOR
+ * per assicurare che un utente possa accedere solo ai propri dati.
+ */
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     
-    // IDOR Protection: assicuriamoci che stia chiedendo il proprio profilo
+    // Protezione IDOR: verifica che l'utente loggato stia richiedendo i propri dati
     if (userId !== req.user.userId) {
       return res.status(403).json({ error: 'Forbidden: Cannot access other users data' });
     }
     
-    // Cerca l'obiettivo nutrizionale nel database
+    // Recupera l'obiettivo nutrizionale dal database
     const goal = await prisma.nutritionalGoal.findUnique({
       where: { userId: userId }
     });
@@ -51,7 +66,8 @@ router.get('/:userId', requireAuth, async (req, res) => {
     });
 
     if (!goal) {
-      // Se non esiste ancora, restituiamo un 404 (React userà i valori base)
+      // Restituisce 404 se il profilo non è ancora stato configurato
+      // permettendo al frontend di mostrare i valori di default
       return res.status(404).json({ message: 'Profile not found' });
     }
 

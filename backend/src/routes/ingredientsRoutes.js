@@ -4,22 +4,31 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Autocomplete Ingredients via Spoonacular
+// -----------------------------------------------------------------------------
+// ROTTE DEGLI INGREDIENTI
+// Gestisce le chiamate esterne relative agli ingredienti (es. Autocomplete).
+// -----------------------------------------------------------------------------
+
+/**
+ * GET /autocomplete
+ * Fornisce suggerimenti in tempo reale (autocomplete) mentre l'utente digita
+ * il nome di un ingrediente nella dispensa. Interroga direttamente le API di Spoonacular.
+ */
 router.get('/autocomplete', requireAuth, async (req, res) => {
   try {
     const { query } = req.query;
     
-    // Se l'utente ha scritto meno di 2 lettere, non facciamo la chiamata
+    // Previene chiamate API inutili se la query è troppo corta
     if (!query || query.length < 2) {
       return res.json([]);
     }
 
     const apiKey = getApiKey();
 
-    // Chiamiamo Spoonacular per avere i 5 migliori suggerimenti
+    // Richiede a Spoonacular i 5 migliori suggerimenti basati sulla query
     const spoonacularUrl = `https://api.spoonacular.com/food/ingredients/autocomplete?query=${query}&number=5&metaInformation=true&apiKey=${apiKey}`;
     
-    // Node.js v18+ ha fetch nativo, possiamo usarlo nel backend!
+    // Effettua la richiesta HTTP esterna sfruttando la fetch nativa di Node.js
     const response = await fetch(spoonacularUrl);
     if (!response.ok) {
       throw new Error(`Spoonacular API responded with status ${response.status}`);

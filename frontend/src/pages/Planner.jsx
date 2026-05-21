@@ -4,13 +4,25 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function Planner() {
   const navigate = useNavigate();
+  // Stato principale del piano alimentare settimanale
   const [mealPlan, setMealPlan] = useState(null);
+  
+  // Stati per la gestione del caricamento e degli errori
   const [isLoading, setIsLoading] = useState(false);
-  const [swappingId, setSwappingId] = useState(null);
   const [error, setError] = useState('');
+  const [progressMessage, setProgressMessage] = useState(''); // Messaggi di progresso SSE
+  
+  // Stati per le interazioni UI (swap e visualizzazione dettagli)
+  const [swappingId, setSwappingId] = useState(null);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
+  
+  // Toggle per scegliere tra AI Chef (Gemini) e generazione Standard (Spoonacular)
   const [useAI, setUseAI] = useState(false);
-  const [progressMessage, setProgressMessage] = useState('');
+
+  /**
+   * Recupera il piano alimentare attivo dell'utente dal backend.
+   * Raggruppa in automatico i risultati per data per facilitare il rendering.
+   */
   const fetchActivePlan = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -25,7 +37,9 @@ export default function Planner() {
   };
 
   useEffect(() => {
+    // Reindirizza al login se l'utente non è in sessione
     if (!localStorage.getItem('user')) navigate('/login');
+    // Carica il piano appena il componente viene montato
     fetchActivePlan();
   }, [navigate]);
 
@@ -36,6 +50,7 @@ export default function Planner() {
       try {
         const user = JSON.parse(localStorage.getItem('user'));
 
+        // Selezione dinamica dell'endpoint in base al toggle "AI Chef"
         const endpoint = useAI
           ? '/api/planner/generate-ai'
           : '/api/planner/generate';
@@ -56,13 +71,14 @@ export default function Planner() {
             return;
           }
 
+          // Configurazione per leggere lo stream di eventi Server-Sent Events (SSE)
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
 
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) break; // Fine dello stream
             buffer += decoder.decode(value, { stream: true });
 
             let idx;
@@ -97,11 +113,11 @@ export default function Planner() {
       }
     };
   const handleSwapRecipe = async (entryId) => {
-    setSwappingId(entryId);
+    setSwappingId(entryId); // Mostra il loader sul singolo bottone
     try {
       const response = await fetchWithAuth(`/api/planner/swap/${entryId}`, { method: 'PUT' });
       if (response.ok) {
-        await fetchActivePlan();
+        await fetchActivePlan(); // Ricarica il piano aggiornato
       } else {
         const result = await response.json();
         alert(result.error || "Failed to swap recipe.");
@@ -109,14 +125,18 @@ export default function Planner() {
     } catch (error) {
       alert("Failed to swap recipe.");
     } finally {
-      setSwappingId(null);
+      setSwappingId(null); // Rimuove il loader
     }
   };
 
-  // Funzione per salvare la spunta "Mangiato" nel Database
+  /**
+   * Cambia lo stato "Mangiato" (isLocked) di un pasto.
+   * Utilizza l'approccio dell'Aggiornamento Ottimistico (Optimistic UI Update)
+   * per garantire un'esperienza utente immediata, mentre salva i dati in background.
+   */
   const handleToggleEaten = async (entryId, currentStatus) => {
     try {
-      // Aggiorniamo la UI istantaneamente (Ottimismo)
+      // 1. Aggiornamento Ottimistico della UI
       const updatedPlan = { ...mealPlan };
       for (let day in updatedPlan) {
         const entryIndex = updatedPlan[day].findIndex(e => e.id === entryId);
@@ -126,7 +146,7 @@ export default function Planner() {
       }
       setMealPlan(updatedPlan);
 
-      // Chiamata in background per salvare nel DB
+      // 2. Chiamata API asincrona in background per la persistenza su database
       await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -201,20 +221,20 @@ export default function Planner() {
           <div className="row g-4 mt-2">
             {Object.keys(mealPlan).sort().map((dateStr) => {
               
-              // Calcolo totale giornaliero (solo delle ricette SPUNTATE)
+              // Calcola il totale delle calorie unicamente per le ricette consumate (spuntate)
               const consumedCals = mealPlan[dateStr]
                 .filter(e => e.isLocked)
                 .reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
 
               const dayEntries = mealPlan[dateStr];
               
-              // Totali Pianificati
+              // Calcola i totali pianificati per l'intera giornata (Goal)
               const totalCals = dayEntries.reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
               const totalPro = dayEntries.reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
               const totalCarbs = dayEntries.reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
               const totalFat = dayEntries.reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
 
-              // Totali Consumati (isLocked = true)
+              // Calcola i totali reali consumati dall'utente (Actual)
               const eatenCals = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
               const eatenPro = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
               const eatenCarbs = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
@@ -224,7 +244,7 @@ export default function Planner() {
                 <div className="col-md-6 col-xl-4" key={dateStr}>
                   <div className="card shadow-sm h-100 border-0">
                     
-                    {/* 2. Sostituisci il card-header con questo */}
+                    {/* Intestazione della Card Giornaliera */}
                     <div className="card-header bg-dark text-white p-3">
                       <div className="d-flex justify-content-between align-items-center mb-2">
                         <h5 className="card-title text-capitalize mb-0">{formatDate(dateStr)}</h5>
@@ -233,7 +253,7 @@ export default function Planner() {
                         </span>
                       </div>
                       
-                      {/* NUOVA SEZIONE: Macro Totali Giornalieri (Consumati / Totali Generati) */}
+                      {/* Riepilogo Progressi Macronutrienti: Mostra il rapporto Consumato / Generato */}
                       <div className="d-flex justify-content-between text-light opacity-75" style={{ fontSize: '0.8rem' }}>
                         <div>
                           <strong>Pro:</strong> {mealPlan[dateStr].filter(e=>e.isLocked).reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0).toFixed(0)} / 
@@ -257,7 +277,7 @@ export default function Planner() {
                           const info = entry.recipe.nutritionalInfo || {};
                           const missed = info.missedIngredients || [];
                           
-                          // Se è "isLocked" (Mangiato), applichiamo uno sfondo leggermente grigio e opaco
+                          // Stile dinamico: i pasti consumati appaiono disabilitati (grigi e opachi)
                           const liClass = entry.isLocked ? 'list-group-item p-3 position-relative bg-body-tertiary opacity-50' : 'list-group-item p-3 position-relative';
                           
                           return (
@@ -283,7 +303,7 @@ export default function Planner() {
                               </div>
                               
                               <div className="d-flex align-items-center gap-2 mb-2">
-                                {/* La checkbox ORA è collegata al Database! */}
+                                {/* Checkbox interattiva legata allo stato del database */}
                                 <input 
                                   className="form-check-input mt-0 fs-5" 
                                   type="checkbox" 
@@ -327,7 +347,7 @@ export default function Planner() {
           </div>
         )}
       </div>
-{/* --- MODAL DELLA RICETTA (MODULO 3) --- */}
+      {/* Modale di Dettaglio Ricetta */}
       {selectedRecipe && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -337,7 +357,7 @@ export default function Planner() {
                 <div className="d-flex align-items-center gap-2">
                   <h4 className="modal-title fw-bold text-primary mb-0">{selectedRecipe.title}</h4>
                   
-                  {/* Badge Magico AI - Compare solo se sourceType è AI_GENERATED */}
+                  {/* Badge AI Chef: Visibile esclusivamente per le ricette generate da Gemini */}
                   {selectedRecipe.sourceType === 'AI_GENERATED' && (
                     <span className="badge text-dark border border-warning shadow-sm" style={{ background: 'linear-gradient(45deg, #FFD700, #FFA500)' }}>
                       ✨ AI Chef Recipe
@@ -348,22 +368,18 @@ export default function Planner() {
                 <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
               </div>
               
-              <div className="modal-body p-4">
-                {/* 1. Immagine della ricetta */}
-                {selectedRecipe.imageUrl && (
+                <div className="modal-body p-4">
+                  {selectedRecipe.imageUrl && (
                   <img src={selectedRecipe.imageUrl} alt={selectedRecipe.title} className="img-fluid rounded mb-4 w-100 shadow-sm" style={{ maxHeight: '350px', objectFit: 'cover' }} />
                 )}
                 
                 <div className="row mb-4">
-                  {/* 2. LA LISTA DEGLI INGREDIENTI VA QUI (Colonna Sinistra) */}
                   <div className="col-md-6">
                     <h5 className="fw-bold border-bottom pb-2">🛒 Ingredients</h5>
                     <ul className="list-group list-group-flush small">
-                      
-                      {/* Mappiamo ingredientsList (AI) oppure extendedIngredients (Spoonacular) */}
+                      {/* Gestisce la struttura dati polimorfica: ingredientsList per Gemini, extendedIngredients per Spoonacular */}
                       {(selectedRecipe.nutritionalInfo?.ingredientsList || selectedRecipe.nutritionalInfo?.extendedIngredients)?.map((ing, i) => (
                         <li key={i} className="list-group-item px-0 py-1 border-0">
-                          {/* Se c'è 'original' (Spoonacular), stampiamo quello. Altrimenti stampiamo i dati dell'AI */}
                           {ing.original ? (
                             <span>• {ing.original}</span>
                           ) : (
@@ -374,7 +390,7 @@ export default function Planner() {
                         </li>
                       ))}
 
-                      {/* Fallback se non ci sono ingredienti da nessuna delle due fonti */}
+                      {/* Fallback grafico in assenza di ingredienti */}
                       {(!selectedRecipe.nutritionalInfo?.ingredientsList && (!selectedRecipe.nutritionalInfo?.extendedIngredients || selectedRecipe.nutritionalInfo.extendedIngredients.length === 0)) && (
                         <li className="list-group-item px-0 py-1 border-0 text-muted fst-italic">Ingredients list not available from source.</li>
                       )}
@@ -382,7 +398,6 @@ export default function Planner() {
                     </ul>
                   </div>
                   
-                  {/* 3. I Macronutrienti (Colonna Destra) */}
                   <div className="col-md-6">
                     <h5 className="fw-bold border-bottom pb-2">📊 Macros per Serving</h5>
                     <div className="d-flex flex-column gap-2 small">
@@ -394,7 +409,6 @@ export default function Planner() {
                   </div>
                 </div>
 
-                {/* 4. Le Istruzioni */}
                 <h5 className="fw-bold border-bottom pb-2">👨‍🍳 Instructions</h5>
                 <div 
                   className="recipe-instructions" 
@@ -403,7 +417,6 @@ export default function Planner() {
                 />
               </div>
 
-              {/* 5. Il Footer col bottone originale */}
               <div className="modal-footer bg-body-tertiary">
                 {selectedRecipe.sourceUrl && (
                   <a href={selectedRecipe.sourceUrl} target="_blank" rel="noreferrer" className="btn btn-outline-primary me-auto">

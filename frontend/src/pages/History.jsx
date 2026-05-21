@@ -4,8 +4,11 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function History() {
   const navigate = useNavigate();
+  // array formattato contenente i raggruppamenti per giorno
   const [historyDays, setHistoryDays] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Stato per gestire l'apertura del modale di dettaglio
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
   useEffect(() => {
@@ -17,7 +20,7 @@ export default function History() {
         const response = await fetchWithAuth(`/api/planner/history/${user.id}`);
         if (response.ok) {
           const entries = await response.json();
-          // Raggruppa per giorno
+          // Raggruppa i pasti storici in base alla data di consumazione
           const grouped = entries.reduce((acc, entry) => {
             const dateStr = new Date(entry.day).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
             if (!acc[dateStr]) {
@@ -28,6 +31,7 @@ export default function History() {
               };
             }
             acc[dateStr].entries.push(entry);
+            // Accumulo dinamico dei macronutrienti per calcolare il totale consumato nel giorno
             acc[dateStr].totals.calories += entry.recipe.caloriesPerServing || 0;
             acc[dateStr].totals.protein += entry.recipe.proteinGramsPerServing || 0;
             acc[dateStr].totals.carbs += entry.recipe.carbsGramsPerServing || 0;
@@ -35,7 +39,7 @@ export default function History() {
             return acc;
           }, {});
 
-          // Converte in array e ordina per data decrescente (nel caso non lo fosse)
+          // Converte l'oggetto raggruppato in un array iterabile e lo ordina cronologicamente (dal più recente)
           const daysArray = Object.keys(grouped).map(k => ({
             label: k,
             ...grouped[k]
@@ -121,7 +125,7 @@ export default function History() {
         </div>
       )}
 
-      {/* RECIPE DETAIL MODAL */}
+      {/* Modale Dettagli Ricetta dello Storico */}
       {selectedRecipe && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">

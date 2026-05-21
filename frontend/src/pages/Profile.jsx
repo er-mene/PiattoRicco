@@ -4,9 +4,11 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function Profile() {
   const navigate = useNavigate();
+  // Stato del caricamento e dei messaggi di notifica UI
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  // Modello dati del modulo del profilo (Macronutrienti e Allergie)
   const [formData, setFormData] = useState({
     dailyCalories: 2000,
     dailyProtein: 150,
@@ -16,6 +18,7 @@ export default function Profile() {
     intolerances: ''
   });
 
+  // Gestione dinamica dei lucchetti per bloccare specifici macro durante il ricalcolo
   const [locked, setLocked] = useState({
     dailyCalories: false,
     dailyProtein: false,
@@ -54,10 +57,12 @@ export default function Profile() {
     fetchProfile();
   }, [navigate]);
 
+  // Restituisce il numero di lucchetti attualmente attivi
   const getLockedCount = () => {
     return Object.values(locked).filter(Boolean).length;
   };
 
+  // Attiva/Disattiva un lucchetto (massimo 2 bloccati contemporaneamente)
   const toggleLock = (field) => {
     if (locked[field]) {
       setLocked({ ...locked, [field]: false });
@@ -66,8 +71,11 @@ export default function Profile() {
     }
   };
 
-  // NEW: This function runs when the user clicks away from an input box.
-  // It guarantees that the Calories always mathematically match the Macros.
+  /**
+   * Event Handler attivato quando l'utente clicca fuori da un input di testo (blur).
+   * Applica una validazione matematica severa: le Calorie devono sempre corrispondere
+   * all'esatta somma energetica dei Macronutrienti (Proteine x4, Carboidrati x4, Grassi x9).
+   */
   const handleBlur = () => {
     const trueCalories = Math.max(0, Math.round((formData.dailyProtein * 4 + formData.dailyCarbs * 4 + formData.dailyFat * 9) * 100) / 100);
     
@@ -83,7 +91,7 @@ export default function Profile() {
     const name = e.target.name;
     let newValue;
     
-    // Handle string inputs (allergies, intolerances) differently from numbers
+    // Campi testuali (Allergie, Intolleranze) non subiscono la validazione numerica dei macro
     if (name === 'allergies' || name === 'intolerances') {
       setFormData({ ...formData, [name]: e.target.value });
       return;
@@ -97,7 +105,7 @@ export default function Profile() {
 
     const newData = { ...formData, [name]: newValue };
 
-    // --- PATH 1: User is changing Calories ---
+    // --- SCENARIO 1: L'utente sta modificando direttamente le Calorie Totali ---
     if (name === 'dailyCalories') {
       const lockedMacros = ['dailyProtein', 'dailyCarbs', 'dailyFat'].filter(m => locked[m]);
 
@@ -113,9 +121,9 @@ export default function Profile() {
 
         let remainingKcal = newValue - spentKcal;
 
-        // FIX: If remaining calories go negative mid-keystroke, clamp remaining to 0 
-        // so free macros stay at 0. We DO NOT force newData.dailyCalories back up 
-        // so the user can actually finish typing their number!
+        // Correzione di Sicurezza: Se le calorie rimanenti diventano negative durante la digitazione,
+        // le forziamo a 0 per impedire macro negativi. Non alziamo artificialmente dailyCalories
+        // per permettere all'utente di finire di digitare il numero.
         if (remainingKcal < 0) {
           remainingKcal = 0;
         }
@@ -146,7 +154,7 @@ export default function Profile() {
         }
       }
     } 
-    // --- PATH 2: User is changing Protein, Carbs, or Fat ---
+    // --- SCENARIO 2: L'utente sta modificando un Macronutriente (Proteine, Carboidrati, Grassi) ---
     else {
       const fixedFields = new Set(Object.keys(locked).filter(k => locked[k]));
       fixedFields.add(name); 
@@ -186,7 +194,7 @@ export default function Profile() {
       }
     }
 
-    // Round all numbers to 2 decimal places
+    // Arrotonda matematicamente tutti i valori numerici a 2 cifre decimali
     Object.keys(newData).forEach(key => {
       if (typeof newData[key] === 'number') {
         newData[key] = Math.max(0, Math.round(newData[key] * 100) / 100);
@@ -201,29 +209,30 @@ export default function Profile() {
     setIsLoading(true);
     setMessage('');
 
-    // --- FINAL SAFETY NET ---
-    // Calculate the definitive values right before saving to catch any input race conditions
+    // --- VALIDAZIONE FINALE DI SICUREZZA ---
+    // Ricalcola i valori definitivi un istante prima del salvataggio per 
+    // intercettare eventuali race condition dell'input.
     let safeData = { ...formData };
     
     if (locked.dailyCalories) {
-      // If Calories are locked, we force macros to fit inside them (adjusting Carbs or Fat)
+      // Se le Calorie sono bloccate, i macro devono adattarsi ad esse (regolando Carboidrati o Grassi)
       const exactCalories = safeData.dailyProtein * 4 + safeData.dailyCarbs * 4 + safeData.dailyFat * 9;
       if (Math.abs(safeData.dailyCalories - exactCalories) > 1) {
          safeData.dailyFat = Math.max(0, (safeData.dailyCalories - safeData.dailyProtein * 4 - safeData.dailyCarbs * 4) / 9);
       }
     } else {
-      // If Calories are unlocked, we strictly trust the macros and force Calories to match
+      // Se le Calorie sono sbloccate, la priorità va ai macro e le calorie vengono sovrascritte
       safeData.dailyCalories = safeData.dailyProtein * 4 + safeData.dailyCarbs * 4 + safeData.dailyFat * 9;
     }
 
-    // Final rounding pass
+    // Ultimo passaggio di arrotondamento prima del commit
     Object.keys(safeData).forEach(key => {
       if (typeof safeData[key] === 'number') {
         safeData[key] = Math.round(safeData[key] * 100) / 100;
       }
     });
 
-    // Update the UI with the guaranteed safe data
+    // Aggiorna la UI riflettendo i dati matematicamente garantiti
     setFormData(safeData);
 
     try {

@@ -8,7 +8,19 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// --- HISTORY ROUTE ---
+// -----------------------------------------------------------------------------
+// ROTTE DEL PLANNER E DELLA CRONOLOGIA PASTI
+// Questo file gestisce tutte le operazioni relative alla pianificazione settimanale
+// dei pasti, la generazione tramite API (Spoonacular) e tramite Intelligenza
+// Artificiale (Gemini), oltre allo storico dei pasti consumati.
+// -----------------------------------------------------------------------------
+
+/**
+ * GET /history/:userId
+ * Recupera lo storico dei pasti consumati dall'utente.
+ * Ritorna solo i pasti contrassegnati come consumati (isLocked = true),
+ * ordinati cronologicamente dal più recente al più vecchio.
+ */
 router.get('/history/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
@@ -17,7 +29,7 @@ router.get('/history/:userId', requireAuth, async (req, res) => {
     const historyEntries = await prisma.mealPlanEntry.findMany({
       where: {
         mealPlan: { userId: userId },
-        isLocked: true // Solo i pasti che l'utente ha mangiato
+        isLocked: true // Filtra esclusivamente i pasti consumati
       },
       include: { recipe: true },
       orderBy: [
@@ -33,6 +45,12 @@ router.get('/history/:userId', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /:userId
+ * Recupera il piano alimentare attivo dell'utente per la settimana corrente.
+ * Ricalcola dinamicamente gli ingredienti mancanti/usati in base alla dispensa attuale
+ * prima di inviare i dati al frontend.
+ */
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
@@ -53,14 +71,15 @@ router.get('/:userId', requireAuth, async (req, res) => {
 
     if (!activePlan) return res.status(404).json({ message: 'No active plan found' });
 
-    // --- MAGIA: Ricalcolo Dinamico degli Ingredienti ---
-    // 1. Peschiamo la dispensa aggiornata in questo preciso istante
+    // Ricalcolo Dinamico degli Ingredienti
+    // Ottiene la dispensa aggiornata dell'utente in tempo reale
     const pantry = await prisma.pantryItem.findMany({
       where: { userId }, include: { ingredient: true }
     });
     const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
 
-    // 2. Aggiorniamo le liste di ogni singola ricetta prima di inviarle al frontend
+    // Aggiorna le liste di ingredienti 'usati' e 'mancanti' di ogni singola ricetta
+    // confrontandoli con lo stato attuale della dispensa.
     activePlan.entries.forEach(entry => {
       const recipe = entry.recipe;
       const allIng = [
@@ -73,16 +92,15 @@ router.get('/:userId', requireAuth, async (req, res) => {
 
       allIng.forEach(ingName => {
         const lowerIng = ingName.toLowerCase();
-        // Se c'è in dispensa, va in "used", altrimenti in "missed"
+        // Verifica la presenza in dispensa e smista l'ingrediente nella lista corretta
         const isInPantry = pantryNames.some(p => lowerIng.includes(p) || p.includes(lowerIng));
         isInPantry ? newUsed.push(ingName) : newMissed.push(ingName);
       });
 
-      // Sovrascriviamo l'oggetto in memoria che stiamo per spedire a React
+      // Sovrascrive l'oggetto in memoria da inviare al client
       recipe.nutritionalInfo.usedIngredients = newUsed;
       recipe.nutritionalInfo.missedIngredients = newMissed;
     });
-    // ---------------------------------------------------
 
     res.status(200).json(activePlan);
   } catch (error) {
@@ -90,9 +108,18 @@ router.get('/:userId', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * POST /generate
+ * Genera un nuovo piano alimentare settimanale utilizzando l'API di Spoonacular.
+ * Il processo si divide in due fasi principali:
+ * 1. Fetching euristico: Richiede all'API un pool ampio di ricette per colazione, pranzo, cena e snack,
+ *    basandosi in modo lasco sulle calorie target e applicando filtri severi per intolleranze/diete.
+ * 2. Assegnazione dinamica (Knapsack/Tetris): Combina le ricette estratte minimizzando l'errore
+ *    rispetto agli obiettivi di macronutrienti giornalieri dell'utente.
+ */
 router.post('/generate', requireAuth, async (req, res) => {
   try {
-    const userId = req.user.userId; // Trusted ID
+    const userId = req.user.userId;
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId } });
     if (!goal) return res.status(400).json({ error: 'Profile incomplete' });
     const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId } });
@@ -110,10 +137,10 @@ router.post('/generate', requireAuth, async (req, res) => {
     const snackCount = snacksSlots.length;
     const snackTarget = snackCount > 0 ? snacksSlots[0].targets : null;
 
-    // 1. IL MOTORE DI RICERCA (Heuristic Fetch)
+    // Funzione ausiliaria per richiedere un lotto di ricette a Spoonacular
     const fetchPool = async (type, count, targetCals) => {
-      // Finestre di macro molto ampie: lasciamo che Spoonacular trovi i risultati,
-      // la precisione al grammo la farà il nostro algoritmo di Tetris locale.
+      // Definisce una finestra calorica ampia per massimizzare i risultati dell'API.
+      // La precisione millimetrica sui macro verrà calcolata localmente nel passo successivo.
       const minCals = Math.max(50, targetCals - 400);
       const maxCals = targetCals + 400;
 
@@ -139,25 +166,26 @@ router.post('/generate', requireAuth, async (req, res) => {
         const res = await fetch(strictUrl);
         const data = await res.json();
 
-        // Se troviamo un buon bacino di ricette con questi ingredienti, lo usiamo
+        // Ritorna le ricette filtrate per dispensa se soddisfano la soglia numerica minima
         if (data.results && data.results.length >= (type === 'breakfast' ? 7 : 14)) {
           return data.results;
         }
       }
 
-      // FALLBACK: Se l'ingrediente estratto era troppo raro (es. "zafferano"),
-      // peschiamo ricette generiche ma che rispettano le calorie, per non bloccare l'app.
+      // Fallback: se i filtri della dispensa erano troppo restrittivi o restituivano pochi risultati,
+      // ignora la dispensa e cerca ricette generiche per garantire la continuità del servizio.
       const res = await fetch(baseUrl);
       const data = await res.json();
       return data.results || [];
     };
 
-    // Peschiamo un "bacino" di ricette da cui attingere
+    // Estrae i bacini di ricette per i vari tipi di pasto
     const breakfastPool = await fetchPool('breakfast', 15, breakfastTarget.calories);
     const mainPool = await fetchPool('main course', 30, lunchTarget.calories);
     const snackPool = snackCount > 0 ? await fetchPool('snack', snackCount * 7 + 5, snackTarget.calories) : [];
 
-    // Mettiamo un controllo di sicurezza solo per problemi di rete dell'API
+    // Controllo di sicurezza: interrompe la generazione se le API di Spoonacular non restituiscono abbastanza dati
+    // (es. limite API raggiunto o errori di rete)
     if (breakfastPool.length < 7 || mainPool.length < 14 || (snackCount > 0 && snackPool.length < snackCount * 7)) {
       return res.status(400).json({ error: 'Spoonacular API is busy or out of quota. Please try again in a few seconds!' });
     }
@@ -176,9 +204,10 @@ router.post('/generate', requireAuth, async (req, res) => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
 
+    // Pulisce eventuali piani futuri esistenti per evitare sovrapposizioni
     await prisma.mealPlan.deleteMany({ where: { userId: userId, endDate: { gte: today } } });
 
-    // DB BLOAT FIX: Clean up orphaned recipes that have no meal plan entries left
+    // Rimuove ricette orfane (non collegate a nessun piano) per ottimizzare lo spazio nel database
     await prisma.recipe.deleteMany({
       where: {
         mealPlanEntries: {
@@ -194,14 +223,14 @@ router.post('/generate', requireAuth, async (req, res) => {
       data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
     });
 
-    // Utility per leggere i macro in modo sicuro
+    // Utility per l'estrazione sicura dei macronutrienti dalla struttura dati di Spoonacular
     const getMacro = (recipe, name) => recipe?.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
 
     let currentDate = new Date(today);
     const days = [0, 1, 2, 3, 4, 5, 6];
-    let mealPlanEntriesData = [];
 
-    // 2. FASE DI INCASRTRO (TETRIS GIORNALIERO)
+    // Algoritmo di Assegnazione Giornaliera
+    // Per ogni giorno della settimana, calcola il fabbisogno residuo e vi incastra le ricette ottimali
     for (let i = 0; i < days.length; i++) {
 
       let remCals = goal.dailyCalories;
@@ -211,7 +240,7 @@ router.post('/generate', requireAuth, async (req, res) => {
 
       let dailyMeals = [];
 
-      // A. La Colazione
+      // Assegna la colazione
       const b = scoredBreakfast.shift() || scoredBreakfast[0];
       if (b) {
         remCals -= getMacro(b, 'Calories');
@@ -221,7 +250,7 @@ router.post('/generate', requireAuth, async (req, res) => {
         dailyMeals.push({ type: 'BREAKFAST', slotIndex: 10, data: b });
       }
 
-      // B. Gli Snack (Distribuiti tra mattina e pomeriggio)
+      // Distribuisce eventuali snack nell'arco della giornata
       for (let sIndex = 0; sIndex < snackCount; sIndex++) {
         const s = scoredSnack.shift() || scoredSnack[0];
         if (s) {
@@ -235,7 +264,9 @@ router.post('/generate', requireAuth, async (req, res) => {
         }
       }
 
-      // C. SCELTA PRANZO/CENA
+      // Ricerca della combinazione ottimale per Pranzo + Cena
+      // Confronta le coppie di ricette disponibili e seleziona quella che minimizza 
+      // lo scostamento dai macronutrienti target giornalieri
       let bestPair = null;
       let minError = Infinity;
       let bestPairFallback = null;
@@ -251,13 +282,13 @@ router.post('/generate', requireAuth, async (req, res) => {
           const combinedCarbs = getMacro(l_cand, 'Carbohydrates') + getMacro(d_cand, 'Carbohydrates');
           const combinedFat = getMacro(l_cand, 'Fat') + getMacro(d_cand, 'Fat');
 
-          // Errore sui macro: penalizziamo le deviazioni.
+          // Calcolo dell'errore (distanza) dai macro target. I macro sono ponderati in base alle calorie per grammo.
           const error = Math.abs(combinedCals - remCals) +
             Math.abs(combinedPro - remPro) * 4 +
             Math.abs(combinedCarbs - remCarbs) * 4 +
             Math.abs(combinedFat - remFat) * 9;
 
-          // Se soddisfa il vincolo rigoroso delle 100 kcal
+          // Accetta solo combinazioni entro una devianza massima di 100 kcal
           if (Math.abs(combinedCals - remCals) <= 100) {
             if (error < minError) {
               minError = error;
@@ -265,7 +296,7 @@ router.post('/generate', requireAuth, async (req, res) => {
             }
           }
 
-          // Tracciamo anche il miglior fallback generale
+          // Salva anche la combinazione migliore in assoluto in caso nessuna rientri nel limite di 100 kcal
           if (error < minErrorFallback) {
             minErrorFallback = error;
             bestPairFallback = { indexL: x, indexD: y, l: l_cand, d: d_cand };
@@ -275,18 +306,17 @@ router.post('/generate', requireAuth, async (req, res) => {
 
       const selectedPair = bestPair || bestPairFallback;
 
-      // Rimuoviamo gli elementi dal pool (rimuoviamo prima quello con indice maggiore per non sfalsare)
+      // Rimuove le ricette selezionate dal pool per evitare ripetizioni
       const maxIndex = Math.max(selectedPair.indexL, selectedPair.indexD);
       const minIndex = Math.min(selectedPair.indexL, selectedPair.indexD);
 
       scoredMain.splice(maxIndex, 1);
       scoredMain.splice(minIndex, 1);
 
-      // Aggiungiamo pranzo e cena
       dailyMeals.push({ type: 'LUNCH', slotIndex: 30, data: selectedPair.l });
       dailyMeals.push({ type: 'DINNER', slotIndex: 50, data: selectedPair.d });
 
-      // Salvataggio nel Database (Uguale a prima, ma con controllo Dispensa infallibile)
+      // Salvataggio nel database delle ricette selezionate per il giorno corrente
       for (let j = 0; j < dailyMeals.length; j++) {
         const mealData = dailyMeals[j];
         const recipeData = mealData.data;
@@ -296,12 +326,12 @@ router.post('/generate', requireAuth, async (req, res) => {
         const allIng = [...(recipeData.usedIngredients || []), ...(recipeData.missedIngredients || []), ...(recipeData.extendedIngredients || [])];
         const uniqueIng = Array.from(new Set(allIng.map(a => a.name))).map(n => allIng.find(a => a.name === n));
 
+        // Divisione degli ingredienti in usati (presenti in dispensa) o mancanti
         uniqueIng.forEach(ing => {
           const ingName = ing.name.toLowerCase();
           pantryNames.some(p => ingName.includes(p) || p.includes(ingName)) ? used.push(ing.name) : missed.push(ing.name);
         });
 
-        // FIX SALVATAGGIO: Uso corretto della variabile 'recipeData'
         const recipe = await prisma.recipe.upsert({
           where: { spoonacularId: recipeData.id },
           update: {
@@ -354,9 +384,14 @@ router.post('/generate', requireAuth, async (req, res) => {
   }
 });
 
-// Swap 4.0: Ordinamento Matematico Locale (Zero Errori API)
+/**
+ * PUT /swap/:entryId
+ * Gestisce la sostituzione di una ricetta esistente nel piano settimanale.
+ * Utilizza algoritmi di fallback progressivi sulle API di Spoonacular per garantire
+ * sempre un risultato valido, anche con filtri di intolleranze molto rigidi.
+ * Ordina matematicamente i risultati per minimizzare l'errore calorico rispetto ai macronutrienti target.
+ */
 router.put('/swap/:entryId', requireAuth, async (req, res) => {
-  console.log("=== STARTING SWAP FOR ENTRY:", req.params.entryId, "===");
   try {
     const { entryId } = req.params;
     const apiKey = getApiKey();
@@ -385,7 +420,7 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
     const usedCarb = dayEntries.reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
     const usedFat = dayEntries.reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
 
-    // Cosa ci manca per finire la giornata perfetta?
+    // Calcola i macronutrienti target rimanenti per raggiungere l'obiettivo giornaliero
     const targetCals = Math.max(100, goal.dailyCalories - usedCals);
     const targetPro = Math.max(5, goal.dailyProtein - usedPro);
     const targetCarb = Math.max(5, goal.dailyCarbs - usedCarb);
@@ -395,9 +430,10 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
     if (currentEntry.mealType === 'BREAKFAST') type = 'breakfast';
     if (currentEntry.mealType === 'SNACK') type = 'snack';
 
-    const offset = Math.floor(Math.random() * 30); // Random offset to ensure variety on multiple swaps
+    // Offset randomico per assicurare varietà nei risultati in caso di swap multipli consecutivi
+    const offset = Math.floor(Math.random() * 30); 
 
-    // CHIEDIAMO 15 RICETTE SENZA FILTRI SEVERI. Preveniamo il crash dell'API.
+    // URL base per l'API di Spoonacular. Si richiedono 15 ricette con tolleranza ampia sui macronutrienti
     let url = `https://api.spoonacular.com/recipes/complexSearch?apiKey=${apiKey}&number=15&offset=${offset}&type=${type}&addRecipeNutrition=true&addRecipeInformation=true&fillIngredients=true`;
 
     if (dietaryProfile?.diets?.length) {
@@ -428,9 +464,9 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
       url += `&cuisine=${dietaryProfile.preferredCuisines.join(',')}`;
     }
 
-    // Spoonacular's `includeIngredients` uses a strict AND condition. 
-    // If we pass the whole pantry, it searches for a recipe containing EVERY SINGLE item!
-    // To prevent 0 results, we pick 1 random pantry item to prioritize.
+    // Gestione della Dispensa: Spoonacular utilizza un rigoroso operatore logico AND per 'includeIngredients'.
+    // Per evitare zero risultati quando la dispensa è grande, viene estratto casualmente un solo ingrediente 
+    // prioritario su cui forzare la ricerca, ampliando così il bacino dei risultati.
     if (pantryNames.length > 0) {
       const randomIngredient = pantryNames[Math.floor(Math.random() * pantryNames.length)];
       url += `&includeIngredients=${encodeURIComponent(randomIngredient)}`;
@@ -446,16 +482,14 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
     }
 
     if (!data.results || data.results.length === 0) {
-      console.log("No results with offset", offset, "falling back to 0");
       if (offset > 0) {
         url = url.replace(`offset=${offset}`, `offset=0`);
         response = await fetch(url);
         data = await response.json();
       }
       
+      // Fallback 1: Rimuove il vincolo stringente sulla dispensa
       if (!data.results || data.results.length === 0) {
-        console.log("Still no results. Trying without pantry ingredient...");
-        // Togliamo l'ingrediente della dispensa per ampliare la ricerca
         if (url.includes('&includeIngredients=')) {
           url = url.replace(/&includeIngredients=[^&]*/, '');
           response = await fetch(url);
@@ -463,21 +497,18 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
         }
       }
 
+      // Fallback 2: Rimuove i filtri su dieta e cucina. Conserva strettamente le allergie/intolleranze.
       if (!data.results || data.results.length === 0) {
-        console.log("Still no results. Trying without diet/cuisine filters...");
-        // Togliamo dieta e cuisine (ma MANTENIAMO allergie/intolleranze per sicurezza!)
         url = url.replace(/&diet=[^&]*/, '').replace(/&cuisine=[^&]*/, '');
-        console.log("Fallback 3 URL:", url.replace(apiKey, 'HIDDEN_API_KEY'));
         response = await fetch(url);
         data = await response.json();
       }
 
+      // Fallback 3 (Ultima spiaggia): Qualora l'API non restituisca risultati, ignora anche le 
+      // intolleranze per evitare il crash irreversibile della funzionalità di swap. 
+      // L'utente potrà leggere i dettagli della ricetta per sicurezza.
       if (!data.results || data.results.length === 0) {
-        console.log("Still no results. AS A LAST RESORT, dropping intolerances/allergies.");
-        // Se Spoonacular non ha letteralmente NIENTE, togliamo le intolleranze altrimenti il bottone è rotto.
-        // L'utente potrà verificare la ricetta manualmente.
         url = url.replace(/&intolerances=[^&]*/, '').replace(/&excludeIngredients=[^&]*/, '');
-        console.log("Fallback 4 URL:", url.replace(apiKey, 'HIDDEN_API_KEY'));
         response = await fetch(url);
         data = await response.json();
       }
@@ -490,7 +521,7 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
 
     console.log("Spoonacular returned", data.results.length, "results");
 
-    // Rimuoviamo la ricetta attuale per evitare di scambiarla con se stessa
+    // Filtra la ricetta correntemente assegnata per garantire una reale variazione nello swap
     const validResults = data.results.filter(r => r.id !== currentEntry.recipe.spoonacularId);
     if (validResults.length === 0) {
       console.log("No valid alternative results after filtering");
@@ -499,16 +530,17 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
 
     const getMacro = (r, name) => r.nutrition?.nutrients?.find(n => n.name === name)?.amount || 0;
 
-    // LA MAGIA: Il nostro server Node.js ordina le ricette mettendo in cima quella con l'errore matematico minore
+    // Algoritmo di Ordinamento Matematico Locale: 
+    // Calcola il distacco di ogni potenziale ricetta dai macronutrienti target e porta in testa la più vicina.
     validResults.sort((a, b) => {
       const errA = Math.abs(getMacro(a, 'Calories') - targetCals) + Math.abs(getMacro(a, 'Protein') - targetPro) * 4 + Math.abs(getMacro(a, 'Carbohydrates') - targetCarb) * 4 + Math.abs(getMacro(a, 'Fat') - targetFat) * 9;
       const errB = Math.abs(getMacro(b, 'Calories') - targetCals) + Math.abs(getMacro(b, 'Protein') - targetPro) * 4 + Math.abs(getMacro(b, 'Carbohydrates') - targetCarb) * 4 + Math.abs(getMacro(b, 'Fat') - targetFat) * 9;
       return errA - errB;
     });
 
-    const rd = validResults[0]; // Prendiamo la vincitrice assoluta
+    const rd = validResults[0]; // Seleziona il risultato matematicamente più efficiente
 
-    // Calcolo Dispensa
+    // Verifica la disponibilità degli ingredienti in base alla dispensa corrente
     let used = [], missed = [];
     const allIng = [...(rd.usedIngredients || []), ...(rd.missedIngredients || []), ...(rd.extendedIngredients || [])];
     const uniqueIng = Array.from(new Set(allIng.map(a => a.name.toLowerCase()))).map(n => allIng.find(a => a.name.toLowerCase() === n));
@@ -521,8 +553,8 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
       update: {
         instructions: rd.instructions,
         nutritionalInfo: {
-          usedIngredients: used,            // <-- FIX: Aggiunto!
-          missedIngredients: missed,        // <-- FIX: Aggiunto!
+          usedIngredients: used,
+          missedIngredients: missed,
           extendedIngredients: rd.extendedIngredients
         }
       },
@@ -546,7 +578,11 @@ router.put('/swap/:entryId', requireAuth, async (req, res) => {
   }
 });
 
-// NUOVA ROTTA: Segna il pasto come "Mangiato" (isLocked)
+/**
+ * PATCH /entry/:entryId/toggle
+ * Segna un pasto come consumato o meno (toggle di 'isLocked').
+ * Utilizzato per aggiornare lo storico dei pasti.
+ */
 router.patch('/entry/:entryId/toggle', requireAuth, async (req, res) => {
   try {
     const { entryId } = req.params;
@@ -566,12 +602,17 @@ router.patch('/entry/:entryId/toggle', requireAuth, async (req, res) => {
   }
 });
 
-// IL MOTORE AI: Generazione del piano tramite LLM (Gemini) con streaming
+/**
+ * POST /generate-ai
+ * Genera un piano alimentare tramite Intelligenza Artificiale (LLM Gemini).
+ * Crea una dieta creativa, personalizzata ed esplorativa sfruttando il contesto
+ * della dispensa dell'utente e trasmettendo il progresso in tempo reale via Server-Sent Events (SSE).
+ */
 router.post('/generate-ai', requireAuth, async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    // SSE headers for streaming progress
+    // Configurazione Server-Sent Events (SSE) per streaming live dei progressi
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -599,7 +640,6 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
       model: "gemini-3.1-flash-lite",
-      // Removed responseMimeType: "application/json" as it is unstable with generateContentStream
     });
 
     const prompt = `
@@ -626,13 +666,14 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
 
     const streamingResult = await model.generateContentStream(prompt);
 
-    // FIX: Catch unhandled promise rejections on the aggregate response object to prevent Node from crashing
+    // Ignora gli errori pendenti nel chunk stream aggregato per evitare crash di sistema
     streamingResult.response.catch(() => { });
 
     let fullResponse = '';
     for await (const chunk of streamingResult.stream) {
       fullResponse += chunk.text();
-      // Keep the connection alive to prevent Vercel/Render 504 timeouts during long generations
+      // Mantiene viva la connessione HTTP per prevenire timeout di routing 
+      // (tipici su Vercel/Render) durante l'attesa di LLM lenti.
       if (!res.destroyed) {
         res.write(':\\n\\n');
       }
@@ -643,7 +684,7 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
     const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim();
     const mealPool = JSON.parse(cleanJson);
 
-    // Assemble weekly plan
+    // Compilazione del piano settimanale strutturato a partire dal JSON parsato
     const aiPlan = [];
     let totalSnackCounter = 0;
 
@@ -670,7 +711,7 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
       aiPlan.push({ dayIndex: i, meals: dailyMeals });
     }
 
-    // Compute usedIngredients/missedIngredients server-side from pantry
+    // Computazione lato server degli ingredienti usati/mancanti confrontati con la dispensa
     for (const day of aiPlan) {
       for (const meal of day.meals) {
         const used = [];
@@ -758,7 +799,8 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
       }
     }
 
-    // Eseguiamo due sole query massimizzate per inserire tutto, bypassando i limiti di timeout di Accelerate
+    // Operazioni Massive (Bulk Upsert) sul Database
+    // Vengono eseguite due grandi query per bypassare il timeout rigoroso (15 secondi) di Prisma Accelerate
     await prisma.recipe.createMany({ data: recipesData });
     await prisma.mealPlanEntry.createMany({ data: entriesData });
 
@@ -774,7 +816,7 @@ router.post('/generate-ai', requireAuth, async (req, res) => {
         res.write(`data: ${JSON.stringify({ type: 'error', message: errorMsg })}\n\n`);
         res.end();
       } catch (e) {
-        // Connection already closed
+        // Nessuna azione richiesta, stream SSE già disconnesso dal client
       }
     }
   }
