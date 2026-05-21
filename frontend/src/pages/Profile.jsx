@@ -77,10 +77,12 @@ export default function Profile() {
    * all'esatta somma energetica dei Macronutrienti (Proteine x4, Carboidrati x4, Grassi x9).
    */
   const handleBlur = () => {
-    const trueCalories = Math.max(0, Math.round((formData.dailyProtein * 4 + formData.dailyCarbs * 4 + formData.dailyFat * 9) * 100) / 100);
-    
-    if (formData.dailyCalories !== trueCalories) {
-      setFormData(prev => ({ ...prev, dailyCalories: trueCalories }));
+    if (!locked.dailyCalories) {
+      const trueCalories = Math.max(0, Math.round(formData.dailyProtein * 4 + formData.dailyCarbs * 4 + formData.dailyFat * 9));
+      
+      if (formData.dailyCalories !== trueCalories) {
+        setFormData(prev => ({ ...prev, dailyCalories: trueCalories }));
+      }
     }
   };
 
@@ -194,12 +196,18 @@ export default function Profile() {
       }
     }
 
-    // Arrotonda matematicamente tutti i valori numerici a 2 cifre decimali
+    // Arrotonda matematicamente tutti i valori numerici a interi
     Object.keys(newData).forEach(key => {
       if (typeof newData[key] === 'number') {
-        newData[key] = Math.max(0, Math.round(newData[key] * 100) / 100);
+        newData[key] = Math.max(0, Math.round(newData[key]));
       }
     });
+
+    const protein = newData.dailyProtein, carbs = newData.dailyCarbs, fat = newData.dailyFat;
+    const macroSum = protein * 4 + carbs * 4 + fat * 9;
+    if (macroSum !== newData.dailyCalories && !locked.dailyCalories) {
+      newData.dailyCalories = macroSum;
+    }
 
     setFormData(newData);
   };
@@ -228,9 +236,25 @@ export default function Profile() {
     // Ultimo passaggio di arrotondamento prima del commit
     Object.keys(safeData).forEach(key => {
       if (typeof safeData[key] === 'number') {
-        safeData[key] = Math.round(safeData[key] * 100) / 100;
+        safeData[key] = Math.round(safeData[key]);
       }
     });
+
+    // Se le Calorie sono bloccate, riassorbi il residuo di arrotondamento nei macro sbloccati
+    if (locked.dailyCalories) {
+      const finalSum = safeData.dailyProtein * 4 + safeData.dailyCarbs * 4 + safeData.dailyFat * 9;
+      if (finalSum !== safeData.dailyCalories) {
+        const diff = safeData.dailyCalories - finalSum;
+        const unlockedMacros = ['dailyProtein', 'dailyCarbs', 'dailyFat'].filter(m => !locked[m]);
+        if (unlockedMacros.includes('dailyFat') && diff % 9 === 0) {
+          safeData.dailyFat = Math.max(0, safeData.dailyFat + diff / 9);
+        } else if (unlockedMacros.includes('dailyCarbs') && diff % 4 === 0) {
+          safeData.dailyCarbs = Math.max(0, safeData.dailyCarbs + diff / 4);
+        } else if (unlockedMacros.includes('dailyProtein') && diff % 4 === 0) {
+          safeData.dailyProtein = Math.max(0, safeData.dailyProtein + diff / 4);
+        }
+      }
+    }
 
     // Aggiorna la UI riflettendo i dati matematicamente garantiti
     setFormData(safeData);

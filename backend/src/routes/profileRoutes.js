@@ -21,11 +21,28 @@ router.post('/', requireAuth, async (req, res) => {
   const userId = req.user.userId;
   const { dailyCalories, dailyProtein, dailyCarbs, dailyFat, allergies, intolerances } = req.body;
 
+  // Convert targets to integers to prevent decimal storage in Postgres Int fields and eliminate precision drift
+  const parsedCalories = Math.round(Number(dailyCalories || 0));
+  const parsedProtein = Math.round(Number(dailyProtein || 0));
+  const parsedCarbs = Math.round(Number(dailyCarbs || 0));
+  const parsedFat = Math.round(Number(dailyFat || 0));
+
   try {
     const goal = await prisma.nutritionalGoal.upsert({
       where: { userId: userId },
-      update: { dailyCalories, dailyProtein, dailyCarbs, dailyFat },
-      create: { userId, dailyCalories, dailyProtein, dailyCarbs, dailyFat }
+      update: {
+        dailyCalories: parsedCalories,
+        dailyProtein: parsedProtein,
+        dailyCarbs: parsedCarbs,
+        dailyFat: parsedFat
+      },
+      create: {
+        userId,
+        dailyCalories: parsedCalories,
+        dailyProtein: parsedProtein,
+        dailyCarbs: parsedCarbs,
+        dailyFat: parsedFat
+      }
     });
 
     const dietaryProfile = await prisma.dietaryProfile.upsert({
