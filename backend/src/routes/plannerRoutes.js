@@ -116,6 +116,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
 router.post('/generate', requireAuth, async (req, res) => {
   try {
     const userId = req.user.userId;
+    const { isStrictPantryMode } = req.body || {};
 
     // Configurazione Server-Sent Events (SSE) per streaming live dei progressi
     res.setHeader('Content-Type', 'text/event-stream');
@@ -153,9 +154,11 @@ router.post('/generate', requireAuth, async (req, res) => {
     });
 
     const prompt = `
-      You are an expert nutritionist. Create a practical, highly varied weekly meal plan.
+      You are an expert nutritionist. Create a practical${isStrictPantryMode ? '' : ', highly varied'} weekly meal plan.
       Daily exact target: ${goal.dailyCalories} kcal, ${goal.dailyProtein}g protein, ${goal.dailyCarbs}g carbs, ${goal.dailyFat}g fat.
-      Pantry ingredients to prioritize: [${pantryNames}].
+      ${isStrictPantryMode ? `CRITICAL RULE: YOU MUST ONLY USE THE INGREDIENTS LISTED IN THIS PANTRY: [${pantryNames}]. 
+      EXCEPTION: You MAY freely use basic staples (salt, pepper, olive oil, water, garlic, onion, common spices) even if not listed. 
+      Try your best to generate as many different recipes as possible using only these ingredients. You MUST still rigorously respect the daily calorie and macro targets. If and ONLY if you absolutely cannot create enough variety, it is acceptable to repeat recipes. The priority is to hit macros using ONLY pantry ingredients and staples.` : `Pantry ingredients to prioritize: [${pantryNames}].`}
       
       ${dietaryProfile?.allergies?.length ? `STRICT ALLERGIES: ${dietaryProfile.allergies.join(', ')}. YOU MUST NOT USE THESE INGREDIENTS.` : ''}
       ${dietaryProfile?.intolerances?.length ? `STRICT INTOLERANCES: ${dietaryProfile.intolerances.join(', ')}. YOU MUST NOT USE THESE INGREDIENTS.` : ''}

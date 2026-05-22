@@ -11,6 +11,7 @@ export default function Planner() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [progressMessage, setProgressMessage] = useState(''); // Messaggi di progresso SSE
+  const [isStrictMode, setIsStrictMode] = useState(false); // Modalità Strict Pantry
   
   // Stati per le interazioni UI (swap e visualizzazione dettagli)
   const [swappingId, setSwappingId] = useState(null);
@@ -50,6 +51,7 @@ export default function Planner() {
         const response = await fetchWithAuth('/api/planner/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isStrictPantryMode: isStrictMode })
         });
 
         const contentType = response.headers.get('Content-Type') || '';
@@ -157,6 +159,19 @@ export default function Planner() {
     return new Date(dateString).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   };
 
+  // Calcolo delle ricette uniche per mostrare un avviso se il piano è troppo ripetitivo
+  let uniqueRecipesCount = 0;
+  if (mealPlan) {
+    const titles = new Set();
+    Object.values(mealPlan).forEach(dayMeals => {
+      dayMeals.forEach(entry => titles.add(entry.recipe.title));
+    });
+    uniqueRecipesCount = titles.size;
+  }
+  
+  // Mostra l'avviso se il piano ha generato 7 o meno ricette uniche in tutta la settimana
+  const showRepetitiveWarning = mealPlan && uniqueRecipesCount <= 7;
+
   return (
     <div className="row justify-content-center mt-4 mb-5">
       <div className="col-12">
@@ -164,21 +179,64 @@ export default function Planner() {
             style={{ background: '#1e1e1e', border: '1px solid #333' }}>
           <h2 className="mb-0 text-white fw-bold">📅 Advanced Planner</h2>
           
-          <button 
-            className="btn btn-outline-success border-2 rounded-pill fw-bold px-4" 
-            onClick={handleGeneratePlan}
-            disabled={isLoading}
-            style={{ letterSpacing: '0.5px' }}
-          >
-            {isLoading ? (
-              <><span className="spinner-border spinner-border-sm me-2"></span>{progressMessage || 'Cooking...'}</>
-            ) : (
-              '✨ GENERATE PLAN'
-            )}
-          </button>
+          <div className="d-flex align-items-center gap-3 flex-wrap">
+            <div 
+              className={`d-flex align-items-center gap-3 px-3 py-2 rounded-pill shadow-sm`}
+              style={{ 
+                cursor: isLoading ? 'not-allowed' : 'pointer', 
+                transition: 'all 0.3s ease',
+                background: isStrictMode ? 'linear-gradient(45deg, #198754, #20c997)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${isStrictMode ? 'transparent' : 'rgba(255,255,255,0.1)'}`
+              }}
+              onClick={() => !isLoading && setIsStrictMode(!isStrictMode)}
+              title={isStrictMode ? "AI will strictly use your pantry ingredients." : "AI can use extra ingredients if necessary."}
+            >
+              <div className="form-check form-switch mb-0 d-flex align-items-center" style={{ minHeight: 'auto', paddingLeft: 0 }}>
+                <input 
+                  className="form-check-input ms-0 me-2 mt-0" 
+                  type="checkbox" 
+                  role="switch" 
+                  checked={isStrictMode}
+                  readOnly
+                  disabled={isLoading}
+                  style={{ cursor: 'inherit', width: '2rem', height: '1rem' }}
+                />
+              </div>
+              <div className="d-flex flex-column text-white" style={{ lineHeight: '1.1' }}>
+                <span className="fw-bold" style={{ fontSize: '0.85rem' }}>Strict Pantry Mode</span>
+                <span style={{ fontSize: '0.7rem', opacity: 0.9 }}>{isStrictMode ? 'Only your ingredients' : 'Allows extra ingredients'}</span>
+              </div>
+            </div>
+
+            <button 
+              className="btn btn-outline-success border-2 rounded-pill fw-bold px-4" 
+              onClick={handleGeneratePlan}
+              disabled={isLoading}
+              style={{ letterSpacing: '0.5px' }}
+            >
+              {isLoading ? (
+                <><span className="spinner-border spinner-border-sm me-2"></span>{progressMessage || 'Cooking...'}</>
+              ) : (
+                '✨ GENERATE PLAN'
+              )}
+            </button>
+          </div>
         </div>
 
-        {error && <div className="alert alert-danger shadow-sm"><strong>Oops!</strong> {error}</div>}
+        {error && <div className="alert alert-danger shadow-sm mt-4"><strong>Oops!</strong> {error}</div>}
+
+        {showRepetitiveWarning && !isLoading && !error && (
+          <div className="alert alert-warning shadow-sm border-0 rounded-4 d-flex align-items-center gap-3 mt-4 mb-0" style={{ background: 'linear-gradient(to right, #fff3cd, #ffecb5)' }}>
+            <span className="fs-2 lh-1">⚠️</span>
+            <div>
+              <strong className="text-dark">Limited Variety Detected!</strong> 
+              <p className="text-dark opacity-75 mb-0 small mt-1">
+                Because you have very few ingredients in your pantry, we had to repeat some recipes to accurately hit your nutritional goals. 
+                <strong> Add more ingredients to your pantry</strong> to unlock a much more diverse meal plan!
+              </p>
+            </div>
+          </div>
+        )}
 
         {!mealPlan && !isLoading && !error && (
           <div className="card border-0 shadow-sm text-center p-5 mt-4 bg-body-tertiary">
