@@ -262,7 +262,29 @@ router.post('/generate', requireAuth, async (req, res) => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
 
-    await prisma.mealPlan.deleteMany({ where: { userId, endDate: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } });
+    const activePlans = await prisma.mealPlan.findMany({
+      where: { userId, endDate: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+      include: { entries: true }
+    });
+
+    for (const plan of activePlans) {
+      const hasLocked = plan.entries.some(e => e.isLocked);
+      if (hasLocked) {
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        
+        await prisma.mealPlan.update({
+          where: { id: plan.id },
+          data: { endDate: yesterday }
+        });
+        
+        await prisma.mealPlanEntry.deleteMany({
+          where: { mealPlanId: plan.id, isLocked: false }
+        });
+      } else {
+        await prisma.mealPlan.delete({ where: { id: plan.id } });
+      }
+    }
 
     await prisma.recipe.deleteMany({
       where: {

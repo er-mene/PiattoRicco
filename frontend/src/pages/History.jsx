@@ -57,6 +57,40 @@ export default function History() {
     fetchHistory();
   }, [navigate]);
 
+  const handleRemoveEntry = async (e, entryId) => {
+    e.stopPropagation();
+    try {
+      const response = await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isLocked: false })
+      });
+      if (response.ok) {
+        setHistoryDays(prev => {
+          const newDays = prev.map(day => {
+            if (day.entries.some(ent => ent.id === entryId)) {
+              const removedEntry = day.entries.find(ent => ent.id === entryId);
+              return {
+                ...day,
+                entries: day.entries.filter(ent => ent.id !== entryId),
+                totals: {
+                  calories: day.totals.calories - (removedEntry.recipe.caloriesPerServing || 0),
+                  protein: day.totals.protein - (removedEntry.recipe.proteinGramsPerServing || 0),
+                  carbs: day.totals.carbs - (removedEntry.recipe.carbsGramsPerServing || 0),
+                  fat: day.totals.fat - (removedEntry.recipe.fatGramsPerServing || 0),
+                }
+              };
+            }
+            return day;
+          });
+          return newDays.filter(day => day.entries.length > 0);
+        });
+      }
+    } catch (error) {
+      console.error("Failed to remove history entry:", error);
+    }
+  };
+
   return (
     <div className="container mt-4 mb-5">
       <div className="d-flex flex-column flex-md-row justify-content-between align-md-items-end mb-4 gap-3">
@@ -95,10 +129,18 @@ export default function History() {
                     {dayData.entries.map((entry) => (
                       <div className="col-md-6 col-lg-4" key={entry.id}>
                         <div 
-                          className="d-flex gap-3 bg-body p-2 rounded-3 shadow-sm align-items-center h-100 border"
+                          className="position-relative d-flex gap-3 bg-body p-2 rounded-3 shadow-sm align-items-center h-100 border"
                           style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
                           onClick={() => setSelectedRecipe(entry.recipe)}
                         >
+                          <button
+                            className="btn btn-sm btn-outline-danger position-absolute bg-white"
+                            style={{ top: '4px', right: '4px', padding: '1px 6px', fontSize: '10px', zIndex: 10, borderRadius: '50%' }}
+                            onClick={(e) => handleRemoveEntry(e, entry.id)}
+                            title="Remove from history"
+                          >
+                            ✕
+                          </button>
                           <img 
                             src={entry.recipe.imageUrl} 
                             alt={entry.recipe.title} 
