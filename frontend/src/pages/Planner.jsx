@@ -159,18 +159,25 @@ export default function Planner() {
     return new Date(dateString).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   };
 
-  // Calcolo delle ricette uniche per mostrare un avviso se il piano è troppo ripetitivo
-  let uniqueRecipesCount = 0;
+  // Calcolo degli ingredienti della dispensa effettivamente utilizzati
+  // Se l'IA usa sempre e solo 1 o 2 ingredienti (es. solo uova) in tutte le ricette, 
+  // significa che la dispensa è troppo vuota.
+  let uniqueUsedIngredientsCount = 0;
+  let totalMealsCount = 0;
   if (mealPlan) {
-    const titles = new Set();
+    const usedIngredientsSet = new Set();
     Object.values(mealPlan).forEach(dayMeals => {
-      dayMeals.forEach(entry => titles.add(entry.recipe.title));
+      totalMealsCount += dayMeals.length;
+      dayMeals.forEach(entry => {
+        const used = entry.recipe.nutritionalInfo?.usedIngredients || [];
+        used.forEach(ing => usedIngredientsSet.add(ing.toLowerCase()));
+      });
     });
-    uniqueRecipesCount = titles.size;
+    uniqueUsedIngredientsCount = usedIngredientsSet.size;
   }
   
-  // Mostra l'avviso se il piano ha generato 7 o meno ricette uniche in tutta la settimana
-  const showRepetitiveWarning = mealPlan && uniqueRecipesCount <= 7;
+  // Mostra l'avviso se l'intero piano settimanale si basa su 3 o meno ingredienti della dispensa
+  const showRepetitiveWarning = mealPlan && totalMealsCount > 0 && uniqueUsedIngredientsCount <= 3;
 
   return (
     <div className="row justify-content-center mt-4 mb-5">
@@ -229,9 +236,9 @@ export default function Planner() {
           <div className="alert alert-warning shadow-sm border-0 rounded-4 d-flex align-items-center gap-3 mt-4 mb-0" style={{ background: 'linear-gradient(to right, #fff3cd, #ffecb5)' }}>
             <span className="fs-2 lh-1">⚠️</span>
             <div>
-              <strong className="text-dark">Limited Variety Detected!</strong> 
+              <strong className="text-dark">Limited Pantry Detected! (Only {uniqueUsedIngredientsCount} ingredients used)</strong> 
               <p className="text-dark opacity-75 mb-0 small mt-1">
-                Because you have very few ingredients in your pantry, we had to repeat some recipes to accurately hit your nutritional goals. 
+                Because you have very few ingredients in your pantry, almost all your meals revolve around the same base ingredients. 
                 <strong> Add more ingredients to your pantry</strong> to unlock a much more diverse meal plan!
               </p>
             </div>

@@ -158,7 +158,7 @@ router.post('/generate', requireAuth, async (req, res) => {
       Daily exact target: ${goal.dailyCalories} kcal, ${goal.dailyProtein}g protein, ${goal.dailyCarbs}g carbs, ${goal.dailyFat}g fat.
       ${isStrictPantryMode ? `CRITICAL RULE: YOU MUST ONLY USE THE INGREDIENTS LISTED IN THIS PANTRY: [${pantryNames}]. 
       EXCEPTION: You MAY freely use basic staples (salt, pepper, olive oil, water, garlic, onion, common spices) even if not listed. 
-      Try your best to generate as many different recipes as possible using only these ingredients. You MUST still rigorously respect the daily calorie and macro targets. If and ONLY if you absolutely cannot create enough variety, it is acceptable to repeat recipes. The priority is to hit macros using ONLY pantry ingredients and staples.` : `Pantry ingredients to prioritize: [${pantryNames}].`}
+      Try your best to generate as many different recipes as possible using only these ingredients. You MUST still rigorously respect the daily calorie and macro targets. If and ONLY if you absolutely cannot create enough variety, it is acceptable to repeat recipes. The priority is to hit macros using ONLY pantry ingredients and staples.` : `Pantry ingredients: [${pantryNames}]. CRITICAL INSTRUCTION: You MUST heavily build your recipes around these pantry ingredients first! Start from what is available in the pantry, and then add ANY other ingredients needed to make the meals complex, tasty, and highly varied.`}
       
       ${dietaryProfile?.allergies?.length ? `STRICT ALLERGIES: ${dietaryProfile.allergies.join(', ')}. YOU MUST NOT USE THESE INGREDIENTS.` : ''}
       ${dietaryProfile?.intolerances?.length ? `STRICT INTOLERANCES: ${dietaryProfile.intolerances.join(', ')}. YOU MUST NOT USE THESE INGREDIENTS.` : ''}
@@ -176,6 +176,10 @@ router.post('/generate', requireAuth, async (req, res) => {
         "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ]
       }
       Ensure the arrays have exactly 7, ${totalWeeklySnacks > 0 ? totalWeeklySnacks + ', 7, and 7' : '7, and 7'} items respectively.
+      CRITICAL JSON FORMATTING RULES:
+      1. ABSOLUTELY NO CONVERSATIONAL TEXT, NO INTRODUCTIONS.
+      2. RETURN EXACTLY AND ONLY THE RAW VALID JSON OBJECT.
+      3. MUST properly escape ALL inner double quotes within strings (e.g., use \\" instead of "). Prefer single quotes inside instructions or titles to avoid breaking the JSON.
     `;
 
     sendEvent('status', { message: 'AI is generating your meal plan...' });
@@ -198,7 +202,11 @@ router.post('/generate', requireAuth, async (req, res) => {
     sendEvent('status', { message: 'Processing AI response...' });
 
     const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-    const mealPool = JSON.parse(cleanJson);
+    const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("AI did not return a valid JSON object.");
+    }
+    const mealPool = JSON.parse(jsonMatch[0]);
 
     // Compilazione del piano settimanale strutturato a partire dal JSON parsato
     const aiPlan = [];
