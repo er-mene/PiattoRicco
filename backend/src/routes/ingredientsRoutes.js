@@ -1,8 +1,15 @@
 import express from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { requireAuth } from '../middleware/auth.js';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
+
+const autocompleteLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 30, // Limit each IP to 30 autocomplete requests per minute to prevent keypress spam
+  message: { error: 'Too many autocomplete requests. Please try again later.' }
+});
 
 // -----------------------------------------------------------------------------
 // ROTTE DEGLI INGREDIENTI
@@ -23,7 +30,7 @@ const model = genAI.getGenerativeModel({
  * Fornisce suggerimenti in tempo reale (autocomplete) mentre l'utente digita
  * il nome di un ingrediente nella dispensa. Utilizza Gemini AI per generare suggerimenti.
  */
-router.get('/autocomplete', requireAuth, async (req, res) => {
+router.get('/autocomplete', requireAuth, autocompleteLimiter, async (req, res) => {
   try {
     const { query } = req.query;
     

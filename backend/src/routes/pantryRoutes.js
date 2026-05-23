@@ -46,6 +46,13 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    if (quantity !== null && quantity !== undefined && quantity !== '') {
+      const parsedQuantity = parseFloat(quantity);
+      if (isNaN(parsedQuantity) || parsedQuantity < 0) {
+        return res.status(400).json({ error: 'Quantity must be a valid non-negative number' });
+      }
+    }
+
     const ingredientName = name.trim().toLowerCase();
 
     const ingredient = await prisma.ingredient.upsert({
@@ -59,7 +66,7 @@ router.post('/', requireAuth, async (req, res) => {
       data: { 
         user: { connect: { id: userId } },
         ingredient: { connect: { id: ingredient.id } },
-        quantity: (quantity === null || quantity === undefined) ? null : parseFloat(quantity),
+        quantity: (quantity === null || quantity === undefined || quantity === '') ? null : parseFloat(quantity),
         unit: unit || null
       },
       include: {
@@ -87,10 +94,17 @@ router.put('/:id', requireAuth, async (req, res) => {
     const item = await prisma.pantryItem.findUnique({ where: { id } });
     if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
     
+    if (quantity !== null && quantity !== undefined && quantity !== '') {
+      const parsedQuantity = parseFloat(quantity);
+      if (isNaN(parsedQuantity) || parsedQuantity < 0) {
+        return res.status(400).json({ error: 'Quantity must be a valid non-negative number' });
+      }
+    }
+
     const updatedItem = await prisma.pantryItem.update({
       where: { id: id },
       data: {
-        // La conversione garantisce che stringhe vuote vengano salvate come NULL nel DB
+        // La conversione garantisce che stringhe vuote vengano salvate como NULL nel DB
         quantity: (quantity === null || quantity === '' || quantity === undefined) ? null : parseFloat(quantity),
         unit: unit || null
       },

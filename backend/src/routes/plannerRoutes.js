@@ -4,8 +4,21 @@ import crypto from 'crypto';
 import { buildMealSlots } from '../utils/plannerUtils.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { requireAuth } from '../middleware/auth.js';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
+
+const plannerGenerateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour window
+  max: 5, // Limit each IP to 5 requests per hour
+  message: { error: 'Too many meal plans generated. Please try again after an hour.' }
+});
+
+const plannerSwapLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes window
+  max: 15, // Limit each IP to 15 swap requests per 15 minutes
+  message: { error: 'Too many recipe swaps. Please try again later.' }
+});
 
 // -----------------------------------------------------------------------------
 // ROTTE DEL PLANNER E DELLA CRONOLOGIA PASTI
@@ -113,7 +126,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
  * Crea una dieta creativa, personalizzata ed esplorativa sfruttando il contesto
  * della dispensa dell'utente e trasmettendo il progresso in tempo reale via Server-Sent Events (SSE).
  */
-router.post('/generate', requireAuth, async (req, res) => {
+router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) => {
   try {
     const userId = req.user.userId;
     const { isStrictPantryMode } = req.body || {};
@@ -276,38 +289,6 @@ router.post('/generate', requireAuth, async (req, res) => {
       include: { entries: true }
     });
 
-    for (const plan of activePlans) {
-      const hasLocked = plan.entries.some(e => e.isLocked);
-      if (hasLocked) {
-        const yesterday = new Date(today);
-        yesterday.setDate(today.getDate() - 1);
-        
-        await prisma.mealPlan.update({
-          where: { id: plan.id },
-          data: { endDate: yesterday }
-        });
-        
-        await prisma.mealPlanEntry.deleteMany({
-          where: { mealPlanId: plan.id, isLocked: false }
-        });
-      } else {
-        await prisma.mealPlan.delete({ where: { id: plan.id } });
-      }
-    }
-
-    await prisma.recipe.deleteMany({
-      where: {
-        mealPlanEntries: { none: {} }
-      }
-    });
-
-    const endDate = new Date(today);
-    endDate.setDate(today.getDate() + 6);
-
-    const mealPlan = await prisma.mealPlan.create({
-      data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
-    });
-
     const mealImages = {
       BREAKFAST: '/assets/placeholders/breakfast_placeholder.png',
       LUNCH: '/assets/placeholders/lunch_placeholder.png',
@@ -315,55 +296,93 @@ router.post('/generate', requireAuth, async (req, res) => {
       DINNER: '/assets/placeholders/dinner_placeholder.png'
     };
 
-    sendEvent('status', { message: 'Saving to database...' });
-
-    const recipesData = [];
-    const entriesData = [];
-
-    for (const day of aiPlan) {
-      let currentDate = new Date(today);
-      currentDate.setDate(currentDate.getDate() + day.dayIndex);
-
-      let currentSlotIndex = 0;
-
-      for (const meal of day.meals) {
-        const dynamicImage = mealImages[meal.type] || mealImages.LUNCH;
-        const recipeId = crypto.randomUUID();
-
-        recipesData.push({
-          id: recipeId,
-          sourceType: 'AI_GENERATED',
-          title: meal.title,
-          imageUrl: dynamicImage,
-          instructions: meal.instructions,
-          caloriesPerServing: Math.round(meal.calories),
-          proteinGramsPerServing: Math.round(meal.protein),
-          carbsGramsPerServing: Math.round(meal.carbs),
-          fatGramsPerServing: Math.round(meal.fat),
-          nutritionalInfo: {
-            usedIngredients: meal.usedIngredients || [],
-            missedIngredients: meal.missedIngredients || [],
-            ingredientsList: meal.ingredients || []
-          }
-        });
-
-        entriesData.push({
-          mealPlanId: mealPlan.id,
-          day: currentDate,
-          mealType: meal.type,
-          slotIndex: currentSlotIndex,
-          recipeId: recipeId,
-          isLocked: false
-        });
-
-        currentSlotIndex++;
+    // Eseguiamo tutte le scritture sul database in una singola transazione interattiva
+    const mealPlan = await prisma.$transaction(async (tx) => {
+      // 1. Pulizia dei vecchi piani attivi
+      for (const plan of activePlans) {
+        const hasLocked = plan.entries.some(e => e.isLocked);
+        if (hasLocked) {
+          const yesterday = new Date(today);
+          yesterday.setDate(today.getDate() - 1);
+          
+          await tx.mealPlan.update({
+            where: { id: plan.id },
+            data: { endDate: yesterday }
+          });
+          
+          await tx.mealPlanEntry.deleteMany({
+            where: { mealPlanId: plan.id, isLocked: false }
+          });
+        } else {
+          await tx.mealPlan.delete({ where: { id: plan.id } });
+        }
       }
-    }
 
-    // Operazioni Massive (Bulk Upsert) sul Database
-    // Vengono eseguite due grandi query per bypassare il timeout rigoroso (15 secondi) di Prisma Accelerate
-    await prisma.recipe.createMany({ data: recipesData });
-    await prisma.mealPlanEntry.createMany({ data: entriesData });
+      // 2. Pulizia ricette orfane
+      await tx.recipe.deleteMany({
+        where: {
+          mealPlanEntries: { none: {} }
+        }
+      });
+
+      // 3. Creazione del nuovo piano pasti
+      const endDate = new Date(today);
+      endDate.setDate(today.getDate() + 6);
+
+      const newPlan = await tx.mealPlan.create({
+        data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
+      });
+
+      // 4. Preparazione dei dati delle ricette e dei rispettivi slot
+      const recipesData = [];
+      const entriesData = [];
+
+      for (const day of aiPlan) {
+        let currentDate = new Date(today);
+        currentDate.setDate(currentDate.getDate() + day.dayIndex);
+
+        let currentSlotIndex = 0;
+
+        for (const meal of day.meals) {
+          const dynamicImage = mealImages[meal.type] || mealImages.LUNCH;
+          const recipeId = crypto.randomUUID();
+
+          recipesData.push({
+            id: recipeId,
+            sourceType: 'AI_GENERATED',
+            title: meal.title,
+            imageUrl: dynamicImage,
+            instructions: meal.instructions,
+            caloriesPerServing: Math.round(meal.calories),
+            proteinGramsPerServing: Math.round(meal.protein),
+            carbsGramsPerServing: Math.round(meal.carbs),
+            fatGramsPerServing: Math.round(meal.fat),
+            nutritionalInfo: {
+              usedIngredients: meal.usedIngredients || [],
+              missedIngredients: meal.missedIngredients || [],
+              ingredientsList: meal.ingredients || []
+            }
+          });
+
+          entriesData.push({
+            mealPlanId: newPlan.id,
+            day: currentDate,
+            mealType: meal.type,
+            slotIndex: currentSlotIndex,
+            recipeId: recipeId,
+            isLocked: false
+          });
+
+          currentSlotIndex++;
+        }
+      }
+
+      // 5. Scrittura massiva delle ricette e degli entry di meal plan
+      await tx.recipe.createMany({ data: recipesData });
+      await tx.mealPlanEntry.createMany({ data: entriesData });
+
+      return newPlan;
+    });
 
     sendEvent('complete', { message: 'AI Plan generated perfectly!', mealPlanId: mealPlan.id });
     res.end();
@@ -389,7 +408,7 @@ router.post('/generate', requireAuth, async (req, res) => {
  * Utilizza Gemini AI per generare una singola ricetta sostitutiva ottimizzata
  * per i macronutrienti target residui della giornata.
  */
-router.put('/swap/:entryId', requireAuth, async (req, res) => {
+router.put('/swap/:entryId', requireAuth, plannerSwapLimiter, async (req, res) => {
   try {
     const { entryId } = req.params;
 
@@ -483,28 +502,33 @@ Return ONLY the JSON object, no other text.`;
       DINNER: '/assets/placeholders/dinner_placeholder.png'
     };
 
-    const newRecipe = await prisma.recipe.create({
-      data: {
-        sourceType: 'AI_GENERATED',
-        title: recipeData.title,
-        imageUrl: mealImages[currentEntry.mealType] || mealImages.LUNCH,
-        instructions: recipeData.instructions,
-        readyInMinutes: 30,
-        servings: 1,
-        caloriesPerServing: Math.round(recipeData.calories),
-        proteinGramsPerServing: Math.round(recipeData.protein),
-        carbsGramsPerServing: Math.round(recipeData.carbs),
-        fatGramsPerServing: Math.round(recipeData.fat),
-        nutritionalInfo: {
-          usedIngredients: used,
-          missedIngredients: missed,
-          ingredientsList: recipeData.ingredients || []
+    // Wrap recipe creation and entry update in a single transaction block for atomicity
+    const updatedEntry = await prisma.$transaction(async (tx) => {
+      const newRecipe = await tx.recipe.create({
+        data: {
+          sourceType: 'AI_GENERATED',
+          title: recipeData.title,
+          imageUrl: mealImages[currentEntry.mealType] || mealImages.LUNCH,
+          instructions: recipeData.instructions,
+          readyInMinutes: 30,
+          servings: 1,
+          caloriesPerServing: Math.round(recipeData.calories),
+          proteinGramsPerServing: Math.round(recipeData.protein),
+          carbsGramsPerServing: Math.round(recipeData.carbs),
+          fatGramsPerServing: Math.round(recipeData.fat),
+          nutritionalInfo: {
+            usedIngredients: used,
+            missedIngredients: missed,
+            ingredientsList: recipeData.ingredients || []
+          }
         }
-      }
-    });
+      });
 
-    const updatedEntry = await prisma.mealPlanEntry.update({
-      where: { id: entryId }, data: { recipeId: newRecipe.id, isLocked: false }, include: { recipe: true }
+      return await tx.mealPlanEntry.update({
+        where: { id: entryId },
+        data: { recipeId: newRecipe.id, isLocked: false },
+        include: { recipe: true }
+      });
     });
 
     res.status(200).json(updatedEntry);

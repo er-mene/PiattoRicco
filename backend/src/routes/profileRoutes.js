@@ -21,44 +21,61 @@ router.post('/', requireAuth, async (req, res) => {
   const userId = req.user.userId;
   const { dailyCalories, dailyProtein, dailyCarbs, dailyFat, excludedIngredients, preferredCuisines, diets } = req.body;
 
+  // Validate inputs to prevent NaN or unreasonable values
+  const calVal = Number(dailyCalories || 0);
+  const proVal = Number(dailyProtein || 0);
+  const carbVal = Number(dailyCarbs || 0);
+  const fatVal = Number(dailyFat || 0);
+
+  if (
+    isNaN(calVal) || calVal < 0 || calVal > 10000 ||
+    isNaN(proVal) || proVal < 0 || proVal > 1000 ||
+    isNaN(carbVal) || carbVal < 0 || carbVal > 1000 ||
+    isNaN(fatVal) || fatVal < 0 || fatVal > 1000
+  ) {
+    return res.status(400).json({ error: 'Nutritional goals must be valid non-negative numbers within reasonable biological ranges (Calories max 10000, macros max 1000g)' });
+  }
+
   // Convert targets to integers to prevent decimal storage in Postgres Int fields and eliminate precision drift
-  const parsedCalories = Math.round(Number(dailyCalories || 0));
-  const parsedProtein = Math.round(Number(dailyProtein || 0));
-  const parsedCarbs = Math.round(Number(dailyCarbs || 0));
-  const parsedFat = Math.round(Number(dailyFat || 0));
+  const parsedCalories = Math.round(calVal);
+  const parsedProtein = Math.round(proVal);
+  const parsedCarbs = Math.round(carbVal);
+  const parsedFat = Math.round(fatVal);
 
   try {
-    const goal = await prisma.nutritionalGoal.upsert({
-      where: { userId: userId },
-      update: {
-        dailyCalories: parsedCalories,
-        dailyProtein: parsedProtein,
-        dailyCarbs: parsedCarbs,
-        dailyFat: parsedFat
-      },
-      create: {
-        userId,
-        dailyCalories: parsedCalories,
-        dailyProtein: parsedProtein,
-        dailyCarbs: parsedCarbs,
-        dailyFat: parsedFat
-      }
-    });
-
-    const dietaryProfile = await prisma.dietaryProfile.upsert({
-      where: { userId: userId },
-      update: {
-        excludedIngredients: excludedIngredients || [],
-        preferredCuisines: preferredCuisines || [],
-        diets: diets || []
-      },
-      create: {
-        userId,
-        excludedIngredients: excludedIngredients || [],
-        preferredCuisines: preferredCuisines || [],
-        diets: diets || []
-      }
-    });
+    // Wrap both operations in a transaction block to ensure atomic profile updates
+    const [goal, dietaryProfile] = await prisma.$transaction([
+      prisma.nutritionalGoal.upsert({
+        where: { userId: userId },
+        update: {
+          dailyCalories: parsedCalories,
+          dailyProtein: parsedProtein,
+          dailyCarbs: parsedCarbs,
+          dailyFat: parsedFat
+        },
+        create: {
+          userId,
+          dailyCalories: parsedCalories,
+          dailyProtein: parsedProtein,
+          dailyCarbs: parsedCarbs,
+          dailyFat: parsedFat
+        }
+      }),
+      prisma.dietaryProfile.upsert({
+        where: { userId: userId },
+        update: {
+          excludedIngredients: excludedIngredients || [],
+          preferredCuisines: preferredCuisines || [],
+          diets: diets || []
+        },
+        create: {
+          userId,
+          excludedIngredients: excludedIngredients || [],
+          preferredCuisines: preferredCuisines || [],
+          diets: diets || []
+        }
+      })
+    ]);
 
     res.status(200).json({ message: 'Profile saved successfully', goal, dietaryProfile });
   } catch (error) {
