@@ -29,9 +29,11 @@ router.post('/register', authLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+
   try {
     // Verifica l'unicità dell'indirizzo email nel database
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existingUser) {
       return res.status(400).json({ error: 'Email is already registered' });
     }
@@ -43,7 +45,7 @@ router.post('/register', authLimiter, async (req, res) => {
     // Registra permanentemente il nuovo utente nel database
     const newUser = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         passwordHash: hashedPassword,
       },
     });
@@ -66,9 +68,11 @@ router.post('/login', authLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+
   try {
     // Recupera l'utente tramite email
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
