@@ -1,0 +1,212 @@
+/* 
+  PIATTORICCO CUSTOM STYLESHEET
+  =========================================
+  This file extends and customizes the default Bootstrap 5 dark theme.
+  It uses custom CSS properties (variables), modern typography, and smooth transitions
+  that are highly compliant, clean, and extremely easy to explain in an exam.
+*/
+
+:root {
+  /* Brand color tokens - elegant orange/gold tone and rich dark shades */
+  --pr-primary: #eb5e28;
+  --pr-primary-hover: #d04d1b;
+  --pr-primary-rgb: 235, 94, 40;
+  
+  /* Modern Dark Mode Slate Backgrounds (replacing generic Bootstrap grays) */
+  --pr-bg-dark: #0b0e14;          /* Main viewport background */
+  --pr-bg-card: #161c26;          /* Standard card background */
+  --pr-bg-card-hover: #1e2532;    /* Card background on hover */
+  --pr-border-color: rgba(255, 255, 255, 0.08); /* Clean, low-contrast border line */
+  --pr-border-focus: rgba(235, 94, 40, 0.4);   /* Soft glow for text input focus */
+  
+  /* Smooth animation timing variable */
+  --pr-transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 
+  1. TYPOGRAPHY & BRAND OVERRIDES
+  Applying Inter for highly readable body text and Outfit for stylish bold headers.
+*/
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--pr-bg-dark) !important;
+  color: #f8f9fa !important;
+}
+
+h1, h2, h3, h4, h5, h6, .navbar-brand {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* 
+  2. NATIVE BOOTSTRAP DARK UTILITIES RE-SKINNING
+  We redefine standard Bootstrap dark theme utility background classes so that we don't
+  have to rewrite HTML page layouts—it will instantly re-skin all cards globally!
+*/
+.bg-dark, .navbar-dark {
+  background-color: var(--pr-bg-dark) !important;
+  border-bottom: 1px solid var(--pr-border-color);
+}
+
+.bg-body-secondary, .card {
+  background-color: var(--pr-bg-card) !important;
+  border: 1px solid var(--pr-border-color) !important;
+}
+
+.bg-body-tertiary {
+  background-color: var(--pr-bg-card-hover) !important;
+  border: 1px solid var(--pr-border-color) !important;
+}
+
+.modal-content {
+  background-color: var(--pr-bg-card) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.list-group-item {
+  background-color: transparent !important;
+  border-color: var(--pr-border-color) !important;
+  color: #e9ecef !important;
+}
+
+.table-light {
+  --bs-table-bg: var(--pr-bg-card-hover) !important;
+  color: #f8f9fa !important;
+}
+
+/* 
+  3. INTERACTION & MICRO-ANIMATION CLASSES
+  A simple, elegant helper class that lifts cards on hover and scales button elements.
+  Perfect concept to explain: uses CSS transform, transition, and box-shadow.
+*/
+.hover-card {
+  transition: var(--pr-transition-smooth) !important;
+}
+
+.hover-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3) !important;
+  border-color: rgba(235, 94, 40, 0.35) !important; /* Elegant subtle brand border glow */
+}
+
+/* Clean, glowing visual cues on primary button interactions */
+.btn-primary {
+  background-color: var(--pr-primary) !important;
+  border-color: var(--pr-primary) !important;
+  transition: var(--pr-transition-smooth);
+}
+
+.btn-primary:hover, .btn-primary:focus {
+  background-color: var(--pr-primary-hover) !important;
+  border-color: var(--pr-primary-hover) !important;
+  transform: scale(1.02);
+}
+
+.btn-outline-primary {
+  color: var(--pr-primary) !important;
+  border-color: var(--pr-primary) !important;
+  transition: var(--pr-transition-smooth);
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--pr-primary) !important;
+  color: #fff !important;
+}
+
+/* Style for our custom day navigation selector container */
+.nav-pills .nav-link {
+  color: #ced4da;
+  transition: var(--pr-transition-smooth);
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.nav-pills .nav-link.active {
+  background-color: var(--pr-primary) !important;
+  color: #fff !important;
+  border-color: var(--pr-primary);
+  box-shadow: 0 4px 12px rgba(235, 94, 40, 0.25);
+}
+
+.nav-pills .nav-link:hover:not(.active) {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+/* 
+  4. ADVANCED UTILITIES FOR MOBILE RESPONSIVENESS
+  Hides Chrome/Safari and Firefox scrollbars on horizontal lists (like our mobile tabs scroll).
+*/
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox scrollbar hiding */
+  -ms-overflow-style: none;  /* IE/Edge scrollbar hiding */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera scrollbar hiding */
+}
+
+/* Elegant shadow backdrop and custom card indicators */
+.shadow-sm {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.shadow-lg {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Navbar Navlink Hover Effects (highly readable, clean transitions) */
+.navbar-nav .nav-link {
+  transition: var(--pr-transition-smooth);
+}
+.navbar-nav .nav-link:hover {
+  color: var(--pr-primary) !important;
+}
+
+/* Ensure table headers and elements always render with highly readable light text */
+table, th, td {
+  color: #f8f9fa !important;
+}
+
+/* Autocomplete list suggestions high-contrast hover state */
+.list-group-item-action {
+  transition: var(--pr-transition-smooth);
+}
+.list-group-item-action:hover, .list-group-item-action:focus {
+  background-color: var(--pr-primary) !important;
+  color: #ffffff !important;
+}
+
+/* Custom styles to override native browser autofills, text inputs, and select fields for dark theme compliance */
+.form-control, .form-select {
+  background-color: var(--pr-bg-card) !important;
+  border: 1px solid var(--pr-border-color) !important;
+  color: #f8f9fa !important;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--pr-primary) !important;
+  box-shadow: 0 0 0 0.25rem rgba(235, 94, 40, 0.25) !important;
+}
+
+/* 
+  5. DESKTOP ABSOLUTE WIDGET ALIGNMENT
+  Activated only on desktop viewports (>= 992px).
+  It absolutely positions the card so that its height is determined 
+  entirely by the height of the sibling column (the meals grid),
+  preventing the card from stretching the row abnormally.
+*/
+@media (min-width: 992px) {
+  .desktop-absolute-card {
+    position: absolute !important;
+    top: 0;
+    bottom: 0;
+    left: 12px;
+    right: 12px;
+  }
+  
+  /* Required to let absolute cards position themselves relative to the column padding */
+  .relative-column {
+    position: relative !important;
+  }
+}
+

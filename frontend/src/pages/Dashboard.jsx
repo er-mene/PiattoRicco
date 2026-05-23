@@ -220,10 +220,10 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <h5 className="fw-bold mb-3 mt-1">Your Meals</h5>
       <div className="row g-4 mb-5">
         {/* Colonna di Sinistra: I Pasti Odierni */}
         <div className="col-lg-8">
-          <h5 className="fw-bold mb-3">Your Meals</h5>
           {todayMeals.length === 0 ? (
             <div className="alert alert-info border-0 shadow-sm rounded-4">No meal plan generated for today. Go to Planner to start.</div>
           ) : (
@@ -231,8 +231,8 @@ export default function Dashboard() {
               {todayMeals.map(entry => (
                 <div className="col-md-6" key={entry.id}>
                   <div 
-                    className={`card h-100 shadow-sm border-0 position-relative ${entry.isLocked ? 'bg-body-tertiary opacity-75' : 'bg-body-secondary'}`}
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    className={`card h-100 shadow-sm border-0 position-relative hover-card ${entry.isLocked ? 'bg-body-tertiary opacity-75' : 'bg-body-secondary'}`}
+                    style={{ cursor: 'pointer' }}
                     onClick={() => setSelectedRecipe(entry.recipe)}
                   >
                     <img 
@@ -279,13 +279,13 @@ export default function Dashboard() {
         </div>
 
         {/* Colonna di Destra: Lista della Spesa Dinamica */}
-        <div className="col-lg-4">
-          <div className="card shadow-sm border-0 rounded-4 h-100">
+        <div className="col-lg-4 relative-column">
+          <div className="card shadow-sm border-0 rounded-4 h-100 d-flex flex-column overflow-hidden desktop-absolute-card" style={{ minHeight: '350px' }}>
             <div className="card-header bg-body-tertiary border-bottom-0 pt-4 pb-0">
               <h5 className="fw-bold mb-1">🛒 Smart Grocery List</h5>
               <p className="text-muted small">Missing ingredients for the week</p>
             </div>
-            <div className="card-body overflow-auto" style={{ maxHeight: '400px' }}>
+            <div className="card-body overflow-y-auto flex-grow-1">
               {shoppingList.length === 0 ? (
                 <p className="text-muted small fst-italic">You have all the ingredients you need! 🎉</p>
               ) : (

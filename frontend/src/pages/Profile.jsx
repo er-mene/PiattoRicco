@@ -337,12 +337,23 @@ export default function Profile() {
 
             <form onSubmit={handleSave}>
               <div className="row g-3 mb-4">
-                <div className="col-6">
-                  <div className="d-flex align-items-center gap-2 mb-2">
-                    <label className="form-label fw-bold mb-0">Calories (kcal)</label>
+                {/* Calories Input Group */}
+                <div className="col-12 col-sm-6">
+                  <label className="form-label fw-bold mb-2">Calories (kcal)</label>
+                  <div className="input-group">
+                    <input 
+                      type="number" 
+                      className="form-control form-control-lg" 
+                      name="dailyCalories" 
+                      value={formData.dailyCalories} 
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      min="0"
+                      readOnly={locked.dailyCalories}
+                    />
                     <button
                       type="button"
-                      className={`btn btn-sm ${locked.dailyCalories ? 'btn-danger' : 'btn-outline-secondary'}`}
+                      className={`btn btn-lg ${locked.dailyCalories ? 'btn-danger' : 'btn-outline-secondary'}`}
                       onClick={() => toggleLock('dailyCalories')}
                       title={locked.dailyCalories ? 'Unlock' : getLockedCount() < 2 ? 'Lock' : 'Max 2 locks'}
                       disabled={!locked.dailyCalories && getLockedCount() >= 2}
@@ -350,24 +361,25 @@ export default function Profile() {
                       {locked.dailyCalories ? '🔒' : '🔓'}
                     </button>
                   </div>
-                  <input 
-                    type="number" 
-                    className="form-control form-control-lg" 
-                    name="dailyCalories" 
-                    value={formData.dailyCalories} 
-                    onChange={handleChange}
-                    onBlur={handleBlur}  /* <--- ADDED HERE */
-                    min="0"
-                    readOnly={locked.dailyCalories}
-                  />
                 </div>
                 
-                <div className="col-6">
-                  <div className="d-flex align-items-center gap-2 mb-2">
-                    <label className="form-label fw-bold mb-0">Protein (g)</label>
+                {/* Protein Input Group */}
+                <div className="col-12 col-sm-6">
+                  <label className="form-label fw-bold mb-2">Protein (g)</label>
+                  <div className="input-group">
+                    <input 
+                      type="number" 
+                      className="form-control form-control-lg" 
+                      name="dailyProtein" 
+                      value={formData.dailyProtein} 
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      min="0"
+                      readOnly={locked.dailyProtein}
+                    />
                     <button
                       type="button"
-                      className={`btn btn-sm ${locked.dailyProtein ? 'btn-danger' : 'btn-outline-secondary'}`}
+                      className={`btn btn-lg ${locked.dailyProtein ? 'btn-danger' : 'btn-outline-secondary'}`}
                       onClick={() => toggleLock('dailyProtein')}
                       title={locked.dailyProtein ? 'Unlock' : getLockedCount() < 2 ? 'Lock' : 'Max 2 locks'}
                       disabled={!locked.dailyProtein && getLockedCount() >= 2}
@@ -375,24 +387,25 @@ export default function Profile() {
                       {locked.dailyProtein ? '🔒' : '🔓'}
                     </button>
                   </div>
-                  <input 
-                    type="number" 
-                    className="form-control form-control-lg" 
-                    name="dailyProtein" 
-                    value={formData.dailyProtein} 
-                    onChange={handleChange}
-                    onBlur={handleBlur}  /* <--- ADDED HERE */
-                    min="0"
-                    readOnly={locked.dailyProtein}
-                  />
                 </div>
 
-                <div className="col-6">
-                  <div className="d-flex align-items-center gap-2 mb-2">
-                    <label className="form-label fw-bold mb-0">Carbs (g)</label>
+                {/* Carbs Input Group */}
+                <div className="col-12 col-sm-6">
+                  <label className="form-label fw-bold mb-2">Carbs (g)</label>
+                  <div className="input-group">
+                    <input 
+                      type="number" 
+                      className="form-control form-control-lg" 
+                      name="dailyCarbs" 
+                      value={formData.dailyCarbs} 
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      min="0"
+                      readOnly={locked.dailyCarbs}
+                    />
                     <button
                       type="button"
-                      className={`btn btn-sm ${locked.dailyCarbs ? 'btn-danger' : 'btn-outline-secondary'}`}
+                      className={`btn btn-lg ${locked.dailyCarbs ? 'btn-danger' : 'btn-outline-secondary'}`}
                       onClick={() => toggleLock('dailyCarbs')}
                       title={locked.dailyCarbs ? 'Unlock' : getLockedCount() < 2 ? 'Lock' : 'Max 2 locks'}
                       disabled={!locked.dailyCarbs && getLockedCount() >= 2}
@@ -400,24 +413,25 @@ export default function Profile() {
                       {locked.dailyCarbs ? '🔒' : '🔓'}
                     </button>
                   </div>
-                  <input 
-                    type="number" 
-                    className="form-control form-control-lg" 
-                    name="dailyCarbs" 
-                    value={formData.dailyCarbs} 
-                    onChange={handleChange}
-                    onBlur={handleBlur}  /* <--- ADDED HERE */
-                    min="0"
-                    readOnly={locked.dailyCarbs}
-                  />
                 </div>
 
-                <div className="col-6">
-                  <div className="d-flex align-items-center gap-2 mb-2">
-                    <label className="form-label fw-bold mb-0">Fat (g)</label>
+                {/* Fat Input Group */}
+                <div className="col-12 col-sm-6">
+                  <label className="form-label fw-bold mb-2">Fat (g)</label>
+                  <div className="input-group">
+                    <input 
+                      type="number" 
+                      className="form-control form-control-lg" 
+                      name="dailyFat" 
+                      value={formData.dailyFat} 
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      min="0"
+                      readOnly={locked.dailyFat}
+                    />
                     <button
                       type="button"
-                      className={`btn btn-sm ${locked.dailyFat ? 'btn-danger' : 'btn-outline-secondary'}`}
+                      className={`btn btn-lg ${locked.dailyFat ? 'btn-danger' : 'btn-outline-secondary'}`}
                       onClick={() => toggleLock('dailyFat')}
                       title={locked.dailyFat ? 'Unlock' : getLockedCount() < 2 ? 'Lock' : 'Max 2 locks'}
                       disabled={!locked.dailyFat && getLockedCount() >= 2}
@@ -425,16 +439,6 @@ export default function Profile() {
                       {locked.dailyFat ? '🔒' : '🔓'}
                     </button>
                   </div>
-                  <input 
-                    type="number" 
-                    className="form-control form-control-lg" 
-                    name="dailyFat" 
-                    value={formData.dailyFat} 
-                    onChange={handleChange}
-                    onBlur={handleBlur}  /* <--- ADDED HERE */
-                    min="0"
-                    readOnly={locked.dailyFat}
-                  />
                 </div>
               </div>
 

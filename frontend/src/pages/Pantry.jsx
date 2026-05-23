@@ -207,7 +207,7 @@ export default function Pantry() {
 
             <form onSubmit={handleAddItem} className="row g-2 mb-4 align-items-center">
               {/* Contenitore Relativo per il posizionamento corretto del menu a tendina Absolute */}
-              <div className="col-md-5 position-relative">
+              <div className="col-12 col-md-5 position-relative">
                 <input 
                   type="text" 
                   className={`form-control ${isNameValid ? 'is-valid' : ''}`} 
@@ -240,13 +240,13 @@ export default function Pantry() {
                   </div>
                 )}
 
-                {/* Renderizzazione della tendina con i suggerimenti AI */}
+                {/* Renderizzazione della tendina con i suggerimenti AI (sfondo solido per overlay mobile) */}
                 {showSuggestions && suggestions.length > 0 && (
-                  <ul className="list-group position-absolute w-100 shadow mt-1" style={{ zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
+                  <ul className="list-group position-absolute w-100 shadow mt-1 bg-dark border" style={{ zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
                     {suggestions.map((suggestion) => (
                       <li 
                         key={suggestion.id} 
-                        className="list-group-item list-group-item-action text-capitalize"
+                        className="list-group-item list-group-item-action text-capitalize bg-dark text-light"
                         style={{ cursor: 'pointer' }}
                         onClick={() => handleSelectSuggestion(suggestion)}
                       >
@@ -258,7 +258,7 @@ export default function Pantry() {
               </div>
               
               {/* Campo Input per la Quantità */}
-              <div className="col-md-3">
+              <div className="col-12 col-sm-6 col-md-3">
                 <input 
                   type="number" 
                   className="form-control" 
@@ -274,7 +274,7 @@ export default function Pantry() {
               </div>
 
               {/* Dropdown per la Selezione dell'Unità di Misura */}
-              <div className="col-md-2">
+              <div className="col-12 col-sm-6 col-md-2">
                 <select 
                   className={`form-select ${formData.unit === '' ? 'text-muted' : ''}`} 
                   name="unit"
@@ -292,7 +292,7 @@ export default function Pantry() {
                   <option value="tsp">tsp</option>
                 </select>
               </div>
-              <div className="col-md-2">
+              <div className="col-12 col-md-2">
                 <button 
                   type="submit" 
                   className="btn btn-primary w-100 fw-bold"

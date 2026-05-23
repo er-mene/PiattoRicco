@@ -58,8 +58,8 @@ export default function Favorites() {
               {favorites.map(recipe => (
                 <div className="col-md-4 col-lg-3" key={recipe.id}>
                   <div 
-                    className="card h-100 shadow-sm border-0 position-relative bg-body-secondary"
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    className="card h-100 shadow-sm border-0 position-relative hover-card bg-body-secondary"
+                    style={{ cursor: 'pointer' }}
                     onClick={() => setSelectedRecipe(recipe)}
                   >
                     <img 

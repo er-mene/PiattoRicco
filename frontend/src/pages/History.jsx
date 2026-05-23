@@ -129,8 +129,8 @@ export default function History() {
                     {dayData.entries.map((entry) => (
                       <div className="col-md-6 col-lg-4" key={entry.id}>
                         <div 
-                          className="position-relative d-flex gap-3 bg-body p-2 rounded-3 shadow-sm align-items-center h-100 border"
-                          style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                          className="position-relative d-flex gap-3 bg-body p-2 rounded-3 shadow-sm align-items-center h-100 border hover-card"
+                          style={{ cursor: 'pointer' }}
                           onClick={() => setSelectedRecipe(entry.recipe)}
                         >
                           <button

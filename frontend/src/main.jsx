@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.jsx';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import './custom.css';
 
 // Configurazione di React Query per il caching delle chiamate API e la gestione dello stato server
 const queryClient = new QueryClient();

@@ -25,7 +25,7 @@ function App() {
 
   return (
     <div>
-      <nav className="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+      <nav className="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm sticky-top">
         <div className="container">
           <Link className="navbar-brand fw-bold" to="/"><img src="/assets/logo.png" alt="🍽️ PiattoRicco" height="80" className="d-inline-block align-top" /></Link>
 

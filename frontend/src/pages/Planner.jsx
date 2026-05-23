@@ -16,7 +16,7 @@ export default function Planner() {
   // Stati per le interazioni UI (swap e visualizzazione dettagli)
   const [swappingId, setSwappingId] = useState(null);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
-  
+  const [activeDay, setActiveDay] = useState(null); // Giorno attivo visualizzato nella vista responsive Mobile
 
 
   /**
@@ -29,7 +29,19 @@ export default function Planner() {
       const response = await fetchWithAuth(`/api/planner/${user.id}`);
       if (response.ok) {
         const data = await response.json();
-        setMealPlan(groupEntriesByDay(data.entries));
+        const grouped = groupEntriesByDay(data.entries);
+        setMealPlan(grouped);
+        
+        // Inizializza il giorno attivo per la vista mobile (oggi se presente nel piano, altrimenti il primo giorno)
+        const sortedDates = Object.keys(grouped).sort();
+        if (sortedDates.length > 0) {
+          const todayStr = new Date().toISOString().split('T')[0];
+          if (sortedDates.includes(todayStr)) {
+            setActiveDay(todayStr);
+          } else {
+            setActiveDay(sortedDates[0]);
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -184,7 +196,7 @@ export default function Planner() {
       <div className="col-12">
         <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3 p-4 rounded-4 shadow-lg" 
             style={{ background: '#1e1e1e', border: '1px solid #333' }}>
-          <h2 className="mb-0 text-white fw-bold">📅 Advanced Planner</h2>
+          <h2 className="mb-0 text-white fw-bold">📅 Meal Planner</h2>
           
           <div className="d-flex align-items-center gap-3 flex-wrap">
             <div 
@@ -253,31 +265,58 @@ export default function Planner() {
         )}
 
         {mealPlan && (
-          <div className="row g-4 mt-2">
-            {Object.keys(mealPlan).sort().map((dateStr) => {
-              
-              // Calcola il totale delle calorie unicamente per le ricette consumate (spuntate)
-              const consumedCals = mealPlan[dateStr]
-                .filter(e => e.isLocked)
-                .reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
+          <>
+            {/* Selettore dei Giorni Orizzontale (Visibile SOLO su Mobile tramite Bootstrap d-md-none) */}
+            <div className="d-block d-md-none mb-4 overflow-x-auto hide-scrollbar p-2 bg-dark rounded-4 shadow-sm">
+              <ul className="nav nav-pills flex-nowrap gap-2">
+                {Object.keys(mealPlan).sort().map((dateStr) => {
+                  const isActive = activeDay === dateStr;
+                  const dateObj = new Date(dateStr);
+                  const dayNum = dateObj.getDate();
+                  const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                  return (
+                    <li className="nav-item" key={dateStr}>
+                      <button
+                        className={`nav-link text-nowrap py-1 px-3 rounded-pill text-center d-flex flex-column align-items-center ${isActive ? 'active' : ''}`}
+                        style={{ minWidth: '70px' }}
+                        onClick={() => setActiveDay(dateStr)}
+                      >
+                        <span className="small text-uppercase opacity-75" style={{ fontSize: '0.62rem', letterSpacing: '0.5px' }}>{weekday}</span>
+                        <span className="fw-bold fs-5">{dayNum}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
 
-              const dayEntries = mealPlan[dateStr];
-              
-              // Calcola i totali pianificati per l'intera giornata (Goal)
-              const totalCals = dayEntries.reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
-              const totalPro = dayEntries.reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
-              const totalCarbs = dayEntries.reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
-              const totalFat = dayEntries.reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
+            <div className="row g-4 mt-2">
+              {Object.keys(mealPlan).sort().map((dateStr) => {
+                
+                // Calcola il totale delle calorie unicamente per le ricette consumate (spuntate)
+                const consumedCals = mealPlan[dateStr]
+                  .filter(e => e.isLocked)
+                  .reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
 
-              // Calcola i totali reali consumati dall'utente (Actual)
-              const eatenCals = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
-              const eatenPro = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
-              const eatenCarbs = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
-              const eatenFat = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
+                const dayEntries = mealPlan[dateStr];
+                
+                // Calcola i totali pianificati per l'intera giornata (Goal)
+                const totalCals = dayEntries.reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
+                const totalPro = dayEntries.reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
+                const totalCarbs = dayEntries.reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
+                const totalFat = dayEntries.reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
 
-              return (
-                <div className="col-md-6 col-xl-4" key={dateStr}>
-                  <div className="card shadow-sm h-100 border-0">
+                // Calcola i totali reali consumati dall'utente (Actual)
+                const eatenCals = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
+                const eatenPro = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
+                const eatenCarbs = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
+                const eatenFat = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
+
+                const isSelectedOnMobile = activeDay === dateStr;
+
+                return (
+                  <div className={`col-md-6 col-xl-4 ${isSelectedOnMobile ? 'd-block' : 'd-none d-md-block'}`} key={dateStr}>
+                    <div className="card shadow-sm h-100 border-0 hover-card">
                     
                     {/* Intestazione della Card Giornaliera */}
                     <div className="card-header bg-dark text-white p-3">
@@ -380,6 +419,7 @@ export default function Planner() {
               )
             })}
           </div>
+          </>
         )}
       </div>
       {/* Modale di Dettaglio Ricetta */}
