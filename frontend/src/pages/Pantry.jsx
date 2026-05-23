@@ -233,9 +233,9 @@ export default function Pantry() {
                   )
                 )}
 
-                {/* Messaggio di avviso se la query è valida ma non selezionata */}
+                {/* Messaggio di avviso se la query è valida ma non selezionata (posizionato in modo assoluto per evitare shifting) */}
                 {!isNameValid && formData.name.trim().length >= 2 && (
-                  <div className="text-warning small mt-1 ps-1" style={{ fontSize: '0.82rem' }}>
+                  <div className="text-warning small position-absolute start-0 ps-1" style={{ fontSize: '0.82rem', top: '100%', zIndex: 10 }}>
                     ⚠️ Choose a suggestion from the list
                   </div>
                 )}
