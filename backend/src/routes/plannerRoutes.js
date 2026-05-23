@@ -448,6 +448,7 @@ Nutritional targets for this meal:
 ${pantryList ? `Pantry ingredients to prioritize: [${pantryList}].` : ''}
 ${dietaryProfile?.excludedIngredients?.length ? `EXCLUDED INGREDIENTS (strict allergies, intolerances and dislikes): ${dietaryProfile.excludedIngredients.join(', ')}. YOU MUST NOT USE ANY OF THESE.` : ''}
 ${dietaryProfile?.diets?.length ? `DIETS TO FOLLOW: ${dietaryProfile.diets.join(', ')}.` : ''}
+${dietaryProfile?.preferredCuisines?.length ? `PREFERRED CUISINES: ${dietaryProfile.preferredCuisines.join(', ')}.` : ''}
 
 Return ONLY a JSON object with this exact structure:
 {

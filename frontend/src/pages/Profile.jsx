@@ -8,13 +8,29 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Modello dati del modulo del profilo (Macronutrienti e Allergie)
+  // Common cuisine options for the chip picker
+  const CUISINE_OPTIONS = [
+    'Italian', 'Mexican', 'Japanese', 'Chinese', 'Indian',
+    'Mediterranean', 'American', 'French', 'Thai', 'Greek',
+    'Spanish', 'Middle Eastern', 'Korean', 'Vietnamese', 'Brazilian'
+  ];
+
+  // Diet type options for the chip picker
+  const DIET_OPTIONS = [
+    'Vegetarian', 'Vegan', 'Pescatarian', 'Gluten-Free', 'Dairy-Free',
+    'Keto', 'Paleo', 'Low-Carb', 'Low-Fat', 'High-Protein',
+    'Mediterranean', 'Whole30', 'Flexitarian', 'Carnivore'
+  ];
+
+  // Modello dati del modulo del profilo (Macronutrienti, Allergie, Diete e Cucine preferite)
   const [formData, setFormData] = useState({
     dailyCalories: 2000,
     dailyProtein: 150,
     dailyCarbs: 200,
     dailyFat: 65,
-    excludedIngredients: ''
+    excludedIngredients: '',
+    preferredCuisines: [],
+    diets: []
   });
 
   // Gestione dinamica dei lucchetti per bloccare specifici macro durante il ricalcolo
@@ -44,7 +60,9 @@ export default function Profile() {
               dailyProtein: data.dailyProtein,
               dailyCarbs: data.dailyCarbs,
               dailyFat: data.dailyFat,
-              excludedIngredients: data.excludedIngredients ? data.excludedIngredients.join(', ') : ''
+              excludedIngredients: data.excludedIngredients ? data.excludedIngredients.join(', ') : '',
+              preferredCuisines: data.preferredCuisines || [],
+              diets: data.diets || []
             });
         }
       } catch (error) {
@@ -96,6 +114,9 @@ export default function Profile() {
       setFormData({ ...formData, [name]: e.target.value });
       return;
     }
+
+    // Cuisine toggling is handled by toggleCuisine, not handleChange
+    if (name === 'preferredCuisines') return;
     
     newValue = Number(cleanValue);
 
@@ -271,7 +292,9 @@ export default function Profile() {
         ...safeData,
         excludedIngredients: safeData.excludedIngredients
           ? safeData.excludedIngredients.split(',').map(s => s.trim()).filter(s => s !== '')
-          : []
+          : [],
+        preferredCuisines: safeData.preferredCuisines || [],
+        diets: safeData.diets || []
       };
 
       const response = await fetchWithAuth('/api/profile', {
@@ -427,6 +450,66 @@ export default function Profile() {
                     placeholder="e.g. Peanuts, Dairy, Gluten, Shellfish"
                   />
                   <div className="form-text">Comma-separated. Include allergies, intolerances, or anything you simply dislike — the AI will never use these.</div>
+                </div>
+              </div>
+
+              <div className="row g-3 mb-4">
+                <div className="col-12">
+                  <label className="form-label fw-bold mb-2">🥗 Dietary Preferences</label>
+                  <div className="d-flex flex-wrap gap-2">
+                    {DIET_OPTIONS.map(diet => {
+                      const isSelected = formData.diets.includes(diet);
+                      return (
+                        <button
+                          key={diet}
+                          type="button"
+                          onClick={() => {
+                            const updated = isSelected
+                              ? formData.diets.filter(d => d !== diet)
+                              : [...formData.diets, diet];
+                            setFormData({ ...formData, diets: updated });
+                          }}
+                          className={`btn btn-sm rounded-pill ${
+                            isSelected ? 'btn-success' : 'btn-outline-secondary'
+                          }`}
+                          style={{ fontWeight: isSelected ? '600' : '400', transition: 'all 0.15s ease' }}
+                        >
+                          {isSelected ? '✓ ' : ''}{diet}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="form-text mt-2">Select all that apply — the AI will strictly follow these dietary rules when building your plan.</div>
+                </div>
+              </div>
+
+              <div className="row g-3 mb-4">
+                <div className="col-12">
+                  <label className="form-label fw-bold mb-2">🍽️ Preferred Cuisines</label>
+                  <div className="d-flex flex-wrap gap-2">
+                    {CUISINE_OPTIONS.map(cuisine => {
+                      const isSelected = formData.preferredCuisines.includes(cuisine);
+                      return (
+                        <button
+                          key={cuisine}
+                          type="button"
+                          onClick={() => {
+                            const updated = isSelected
+                              ? formData.preferredCuisines.filter(c => c !== cuisine)
+                              : [...formData.preferredCuisines, cuisine];
+                            setFormData({ ...formData, preferredCuisines: updated });
+                          }}
+                          className={`btn btn-sm rounded-pill ${
+                            isSelected ? 'btn-primary' : 'btn-outline-secondary'
+                          }`}
+                          style={{ fontWeight: isSelected ? '600' : '400', transition: 'all 0.15s ease' }}
+                        >
+                          {isSelected ? '✓ ' : ''}{cuisine}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="form-text mt-2">Select the cuisines you enjoy most — the AI will lean into these styles when crafting your meals.</div>
                 </div>
               </div>
 
