@@ -19,7 +19,7 @@ const router = express.Router();
  */
 router.post('/', requireAuth, async (req, res) => {
   const userId = req.user.userId;
-  const { dailyCalories, dailyProtein, dailyCarbs, dailyFat, allergies, intolerances } = req.body;
+  const { dailyCalories, dailyProtein, dailyCarbs, dailyFat, excludedIngredients } = req.body;
 
   // Convert targets to integers to prevent decimal storage in Postgres Int fields and eliminate precision drift
   const parsedCalories = Math.round(Number(dailyCalories || 0));
@@ -47,8 +47,8 @@ router.post('/', requireAuth, async (req, res) => {
 
     const dietaryProfile = await prisma.dietaryProfile.upsert({
       where: { userId: userId },
-      update: { allergies: allergies || [], intolerances: intolerances || [] },
-      create: { userId, allergies: allergies || [], intolerances: intolerances || [] }
+      update: { excludedIngredients: excludedIngredients || [] },
+      create: { userId, excludedIngredients: excludedIngredients || [] }
     });
 
     res.status(200).json({ message: 'Profile saved successfully', goal, dietaryProfile });
@@ -90,8 +90,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
 
     res.status(200).json({
       ...goal,
-      allergies: dietaryProfile?.allergies || [],
-      intolerances: dietaryProfile?.intolerances || []
+      excludedIngredients: dietaryProfile?.excludedIngredients || []
     });
   } catch (error) {
     console.error('Error fetching profile:', error.message);

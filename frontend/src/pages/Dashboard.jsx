@@ -78,41 +78,21 @@ export default function Dashboard() {
    * settimanale con il contenuto attuale della dispensa dell'utente.
    */
   const shoppingList = useMemo(() => {
-    if (!weeklyPlan || !pantry) return [];
+    if (!weeklyPlan) return [];
     const items = {};
-    const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
 
     weeklyPlan.entries.forEach(entry => {
-      // Aggrega gli ingredienti richiesti ignorando quelli già in dispensa secondo il database
-      const allNeeded = [
-        ...(entry.recipe.nutritionalInfo?.usedIngredients || []),
-        ...(entry.recipe.nutritionalInfo?.missedIngredients || [])
-      ];
-
-      allNeeded.forEach(ing => {
+      const missed = entry.recipe.nutritionalInfo?.missedIngredients || [];
+      missed.forEach(ing => {
         let ingName = ing.toLowerCase().trim();
-        
-        // Normalizzazione del testo: Rimuove stringhe descrittive come "2 cup of milk" -> "milk"
-        if (ingName.includes(" of ")) {
-          ingName = ingName.split(" of ").pop().trim();
-        }
-        
-        // Pulizia avanzata tramite RegEx: elimina numeri, frazioni e unità di misura comuni
-        ingName = ingName.replace(/^[\d\s\/\.,]+(cups?|tbsp|tsp|ounces?|oz|grams?|g|ml|liters?|l|lbs?|pounds?|pinch|dash|cloves?|slices?|pieces?|packages?|cans?|jars?|bottles?)?\s+/i, '').trim();
-
         if (!ingName) return;
 
-        // Se l'ingrediente ripulito non si trova in dispensa, viene aggiunto al conteggio della spesa
-        const isInPantry = pantryNames.some(p => ingName.includes(p) || p.includes(ingName));
-        
-        if (!isInPantry) {
-          const displayName = ingName.charAt(0).toUpperCase() + ingName.slice(1);
-          items[displayName] = (items[displayName] || 0) + 1;
-        }
+        const displayName = ingName.charAt(0).toUpperCase() + ingName.slice(1);
+        items[displayName] = (items[displayName] || 0) + 1;
       });
     });
     return Object.entries(items).map(([name, count]) => ({ name, count }));
-  }, [weeklyPlan, pantry]); // Ricalcolo automatico ad ogni modifica del piano o della dispensa
+  }, [weeklyPlan]); // Ricalcolo automatico ad ogni modifica del piano
 
   const toggleGroceryItem = async (itemName) => {
     // Aggiornamento Ottimistico: Segna l'elemento come in fase di salvataggio
@@ -130,6 +110,13 @@ export default function Dashboard() {
         // Effettua un re-fetch della dispensa. L'ingrediente appena acquistato sparirà dalla lista spesa.
         const updated = await fetchWithAuth(`/api/pantry/${user.id}`);
         setPantry(await updated.json());
+
+        // Re-fetch del piano settimanale in modo che il server ricalcoli gli ingredienti mancanti con la nuova dispensa
+        const planRes = await fetchWithAuth(`/api/planner/${user.id}`);
+        if (planRes.ok) {
+          const planData = await planRes.json();
+          setWeeklyPlan(planData);
+        }
       }
     } catch (error) { 
       console.error(error); 

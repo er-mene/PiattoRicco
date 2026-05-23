@@ -14,8 +14,7 @@ export default function Profile() {
     dailyProtein: 150,
     dailyCarbs: 200,
     dailyFat: 65,
-    allergies: '',
-    intolerances: ''
+    excludedIngredients: ''
   });
 
   // Gestione dinamica dei lucchetti per bloccare specifici macro durante il ricalcolo
@@ -45,8 +44,7 @@ export default function Profile() {
               dailyProtein: data.dailyProtein,
               dailyCarbs: data.dailyCarbs,
               dailyFat: data.dailyFat,
-              allergies: data.allergies ? data.allergies.join(', ') : '',
-              intolerances: data.intolerances ? data.intolerances.join(', ') : ''
+              excludedIngredients: data.excludedIngredients ? data.excludedIngredients.join(', ') : ''
             });
         }
       } catch (error) {
@@ -93,8 +91,8 @@ export default function Profile() {
     const name = e.target.name;
     let newValue;
     
-    // Campi testuali (Allergie, Intolleranze) non subiscono la validazione numerica dei macro
-    if (name === 'allergies' || name === 'intolerances') {
+    // Campi testuali non subiscono la validazione numerica dei macro
+    if (name === 'excludedIngredients') {
       setFormData({ ...formData, [name]: e.target.value });
       return;
     }
@@ -203,10 +201,16 @@ export default function Profile() {
       }
     });
 
-    const protein = newData.dailyProtein, carbs = newData.dailyCarbs, fat = newData.dailyFat;
-    const macroSum = protein * 4 + carbs * 4 + fat * 9;
-    if (macroSum !== newData.dailyCalories && !locked.dailyCalories) {
-      newData.dailyCalories = macroSum;
+    // Only sync calories from macros if the user is NOT directly editing calories.
+    // When editing dailyCalories, the user's typed value must be preserved as-is;
+    // the macros were already derived from it above, so recalculating the sum
+    // would snap the calories to a different rounded number.
+    if (name !== 'dailyCalories') {
+      const protein = newData.dailyProtein, carbs = newData.dailyCarbs, fat = newData.dailyFat;
+      const macroSum = protein * 4 + carbs * 4 + fat * 9;
+      if (macroSum !== newData.dailyCalories && !locked.dailyCalories) {
+        newData.dailyCalories = macroSum;
+      }
     }
 
     setFormData(newData);
@@ -265,8 +269,9 @@ export default function Profile() {
       const payload = {
         userId: user.id,
         ...safeData,
-        allergies: safeData.allergies ? safeData.allergies.split(',').map(s => s.trim()).filter(s => s !== '') : [],
-        intolerances: safeData.intolerances ? safeData.intolerances.split(',').map(s => s.trim()).filter(s => s !== '') : []
+        excludedIngredients: safeData.excludedIngredients
+          ? safeData.excludedIngredients.split(',').map(s => s.trim()).filter(s => s !== '')
+          : []
       };
 
       const response = await fetchWithAuth('/api/profile', {
@@ -411,30 +416,17 @@ export default function Profile() {
               </div>
 
               <div className="row g-3 mb-4 mt-1">
-                <div className="col-md-6">
-                  <label className="form-label fw-bold mb-2">Allergies</label>
+                <div className="col-12">
+                  <label className="form-label fw-bold mb-2">Excluded Ingredients</label>
                   <input 
                     type="text" 
                     className="form-control" 
-                    name="allergies" 
-                    value={formData.allergies} 
+                    name="excludedIngredients" 
+                    value={formData.excludedIngredients} 
                     onChange={handleChange}
-                    placeholder="e.g. Peanuts, Shellfish"
+                    placeholder="e.g. Peanuts, Dairy, Gluten, Shellfish"
                   />
-                  <div className="form-text">Comma-separated ingredients to strictly avoid.</div>
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label fw-bold mb-2">Intolerances</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    name="intolerances" 
-                    value={formData.intolerances} 
-                    onChange={handleChange}
-                    placeholder="e.g. Dairy, Gluten"
-                  />
-                  <div className="form-text">Comma-separated dietary intolerances.</div>
+                  <div className="form-text">Comma-separated. Include allergies, intolerances, or anything you simply dislike — the AI will never use these.</div>
                 </div>
               </div>
 
