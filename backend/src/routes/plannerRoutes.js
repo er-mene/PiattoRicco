@@ -121,6 +121,138 @@ router.get('/:userId', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /generate-single
+ * Genera una singola ricetta "al volo" per l'utente,
+ * rispettando una frazione dell'obiettivo calorico giornaliero in base al tipo di pasto.
+ * Non salva la ricetta in alcun piano alimentare.
+ */
+router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { mealType, isStrictPantryMode } = req.body || {};
+
+    if (!['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'].includes(mealType)) {
+      return res.status(400).json({ error: 'Invalid mealType' });
+    }
+
+    const goal = await prisma.nutritionalGoal.findUnique({ where: { userId } });
+    if (!goal) {
+      return res.status(400).json({ error: 'Profile incomplete. Please set your nutritional goals first.' });
+    }
+    const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId } });
+    const pantry = await prisma.pantryItem.findMany({ where: { userId }, include: { ingredient: true } });
+
+    const pantryNames = pantry.map(p => p.ingredient.name).join(', ');
+    const pantryNamesLower = pantry.map(p => p.ingredient.name.toLowerCase());
+
+    // Frazioni indicative per pasto
+    const mealFractions = {
+      BREAKFAST: 0.25,
+      LUNCH: 0.40,
+      DINNER: 0.35,
+      SNACK: 0.10
+    };
+
+    const fraction = mealFractions[mealType] || 0.3;
+
+    const targetCals = Math.max(100, Math.round(goal.dailyCalories * fraction));
+    const targetPro = Math.max(5, Math.round(goal.dailyProtein * fraction));
+    const targetCarb = Math.max(5, Math.round(goal.dailyCarbs * fraction));
+    const targetFat = Math.max(5, Math.round(goal.dailyFat * fraction));
+
+    let mealTypeLabel = 'lunch or dinner main course';
+    if (mealType === 'BREAKFAST') mealTypeLabel = 'breakfast';
+    if (mealType === 'SNACK') mealTypeLabel = 'snack';
+
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-3.1-flash-lite",
+      generationConfig: {
+        temperature: 1.0,
+      },
+    });
+
+    const prompt = `
+      You are an expert nutritionist. Generate exactly ONE ${mealTypeLabel} recipe.
+      ${isStrictPantryMode ? "CRITICAL RULE: YOU MUST ONLY USE THE INGREDIENTS EXACTLY AS LISTED IN THIS PANTRY: [" + pantryNames + "]. EXCEPTION: You MAY freely use these EXACT basic staples ONLY (salt, pepper, olive oil, water, garlic, onion, common spices) even if not listed. DO NOT add any other ingredients. DO NOT invent or justify new staples (e.g. no cornmeal, no flour, no butter unless explicitly listed). If an ingredient is not in the PANTRY list and is not one of the explicitly allowed staples, YOU ABSOLUTELY MUST NOT USE IT. NO EXCEPTIONS." : "Pantry ingredients to prioritize: [" + pantryNames + "]."}
+      
+      Nutritional targets for this meal:
+      - Calories: ${targetCals} kcal (MUST be within ±30 kcal)
+      - Protein: ${targetPro}g (MUST be within ±5g)
+      - Carbs: ${targetCarb}g (MUST be within ±5g)
+      - Fat: ${targetFat}g (MUST be within ±5g)
+
+      ${dietaryProfile?.excludedIngredients?.length ? `EXCLUDED INGREDIENTS (strict allergies, intolerances and dislikes): ${dietaryProfile.excludedIngredients.join(', ')}. YOU MUST NOT USE ANY OF THESE.` : ''}
+      ${dietaryProfile?.diets?.length ? `DIETS TO FOLLOW: ${dietaryProfile.diets.join(', ')}.` : ''}
+      ${dietaryProfile?.preferredCuisines?.length ? `PREFERRED CUISINES: ${dietaryProfile.preferredCuisines.join(', ')}.` : ''}
+
+      Return ONLY a JSON object with this exact structure (use real values, NO conversational text):
+      {
+        "title": "Recipe Name",
+        "calories": ${targetCals},
+        "protein": ${targetPro},
+        "carbs": ${targetCarb},
+        "fat": ${targetFat},
+        "instructions": "<ol><li>Step 1</li><li>Step 2</li></ol>",
+        "ingredients": [{"name": "ingredient", "amount": 100, "unit": "g"}]
+      }
+      Return ONLY the valid JSON object, properly escaping quotes.
+    `;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    let recipeData;
+    try {
+      recipeData = JSON.parse(cleanJson);
+    } catch (e) {
+      console.error("JSON parse error:", text);
+      return res.status(500).json({ error: 'AI returned invalid data format' });
+    }
+
+    // Verifica disponibilità in dispensa
+    let used = [], missed = [];
+    (recipeData.ingredients || []).forEach(ing => {
+      const ingName = ing.name.toLowerCase();
+      pantryNamesLower.some(p => ingName.includes(p) || p.includes(ingName)) ? used.push(ing.name) : missed.push(ing.name);
+    });
+
+    const mealImages = {
+      BREAKFAST: '/assets/placeholders/breakfast_placeholder.png',
+      LUNCH: '/assets/placeholders/lunch_placeholder.png',
+      SNACK: '/assets/placeholders/snack_placeholder.png',
+      DINNER: '/assets/placeholders/dinner_placeholder.png'
+    };
+
+    const finalRecipe = {
+      id: crypto.randomUUID(), // fake id for frontend keys
+      sourceType: 'AI_GENERATED',
+      title: recipeData.title,
+      imageUrl: mealImages[mealType] || mealImages.LUNCH,
+      instructions: recipeData.instructions,
+      readyInMinutes: 30,
+      servings: 1,
+      caloriesPerServing: Math.round(recipeData.calories),
+      proteinGramsPerServing: Math.round(recipeData.protein),
+      carbsGramsPerServing: Math.round(recipeData.carbs),
+      fatGramsPerServing: Math.round(recipeData.fat),
+      nutritionalInfo: {
+        usedIngredients: used,
+        missedIngredients: missed,
+        ingredientsList: recipeData.ingredients || []
+      }
+    };
+
+    res.status(200).json({ recipe: finalRecipe });
+
+  } catch (error) {
+    console.error("Quick Recipe Error:", error);
+    res.status(500).json({ error: 'Failed to generate single recipe' });
+  }
+});
+
+/**
  * POST /generate
  * Genera un piano alimentare settimanale tramite Intelligenza Artificiale (LLM Gemini).
  * Crea una dieta creativa, personalizzata ed esplorativa sfruttando il contesto
@@ -169,8 +301,8 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
     const prompt = `
       You are an expert nutritionist. Create a practical${isStrictPantryMode ? '' : ', highly varied'} weekly meal plan.
       Daily exact target: ${goal.dailyCalories} kcal, ${goal.dailyProtein}g protein, ${goal.dailyCarbs}g carbs, ${goal.dailyFat}g fat.
-      ${isStrictPantryMode ? `CRITICAL RULE: YOU MUST ONLY USE THE INGREDIENTS LISTED IN THIS PANTRY: [${pantryNames}]. 
-      EXCEPTION: You MAY freely use basic staples (salt, pepper, olive oil, water, garlic, onion, common spices) even if not listed. 
+      ${isStrictPantryMode ? `CRITICAL RULE: YOU MUST ONLY USE THE INGREDIENTS EXACTLY AS LISTED IN THIS PANTRY: [${pantryNames}]. 
+      EXCEPTION: You MAY freely use these EXACT basic staples ONLY (salt, pepper, olive oil, water, garlic, onion, common spices) even if not listed. DO NOT invent or justify new staples (e.g. no cornmeal, no flour, no butter unless explicitly listed). If an ingredient is not in the PANTRY list and is not one of the explicitly allowed staples, YOU ABSOLUTELY MUST NOT USE IT. NO EXCEPTIONS.
       Try your best to generate as many different recipes as possible using only these ingredients. You MUST still rigorously respect the daily calorie and macro targets. If and ONLY if you absolutely cannot create enough variety, it is acceptable to repeat recipes. The priority is to hit macros using ONLY pantry ingredients and staples.` : `Pantry ingredients: [${pantryNames}]. CRITICAL INSTRUCTION: You MUST heavily build your recipes around these pantry ingredients first! Start from what is available in the pantry, and then add ANY other ingredients needed to make the meals complex, tasty, and highly varied.`}
       
       ${dietaryProfile?.excludedIngredients?.length ? `EXCLUDED INGREDIENTS (strict allergies, intolerances and dislikes): ${dietaryProfile.excludedIngredients.join(', ')}. YOU MUST NOT USE ANY OF THESE IN ANY MEAL.` : ''}

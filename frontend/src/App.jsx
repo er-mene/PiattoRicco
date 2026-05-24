@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Favorites from './pages/Favorites';
 import History from './pages/History';
+import QuickRecipe from './pages/QuickRecipe';
 
 function App() {
   const navigate = useNavigate();
@@ -51,6 +52,7 @@ function App() {
                   <Link className="nav-link" to="/dashboard">Dashboard</Link>
                   <Link className="nav-link" to="/pantry">Pantry</Link>
                   <Link className="nav-link" to="/planner">Meal Planner</Link>
+                  <Link className="nav-link" to="/quick-recipe">Quick Recipe</Link>
                   <Link className="nav-link" to="/history">History</Link>
                   <Link className="nav-link" to="/favorites">Favorites</Link>
                   <Link className="nav-link" to="/profile">Profile</Link>
@@ -80,6 +82,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/pantry" element={<Pantry />} />
           <Route path="/planner" element={<Planner />} />
+          <Route path="/quick-recipe" element={<QuickRecipe />} />
           <Route path="/history" element={<History />} />
           <Route path="/favorites" element={<Favorites />} />
           <Route path="/profile" element={<Profile />} />
