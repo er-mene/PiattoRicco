@@ -326,13 +326,20 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
 
       Return EXCLUSIVELY a JSON object with EXACTLY this structure (use realistic values instead of the dummy 0s):
       {
-        "breakfasts": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],
-        ${dailySnackCount > 0 ? `"snacks": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],` : ''}
-        "lunches": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],
-        "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ]
+        "breakfasts": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "<ol><li>...</li></ol>", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],
+        ${dailySnackCount > 0 ? `"snacks": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "<ol><li>...</li></ol>", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],` : ''}
+        "lunches": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "<ol><li>...</li></ol>", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],
+        "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "<ol><li>...</li></ol>", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ]
       }
       Each recipe in the lists must include a "tags" field containing an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]). CRITICAL RULE: DO NOT include redundant meal-type tags (such as "Breakfast", "Lunch", "Dinner", "Snack", or generic labels like "Meal") in this array.
       Ensure the arrays have exactly 7, ${totalWeeklySnacks > 0 ? totalWeeklySnacks + ', 7, and 7' : '7, and 7'} items respectively.
+
+      RECIPE INSTRUCTIONS FORMATTING RULES:
+      - The "instructions" field for each recipe MUST be a string containing a clean HTML ordered list (<ol> with <li> tags for each step).
+      - Make the steps clear, descriptive, and structured, using HTML <strong> tags to highlight key ingredients, temperatures, times, or essential techniques (e.g. "<strong>medium heat</strong>", "<strong>5 minutes</strong>", "<strong>olive oil</strong>").
+      - Keep instructions concise, token-efficient, and direct to limit Gemini API token consumption. Avoid unnecessary fluff, long conversational preambles, or forcing a high minimum number of steps. Focus on brief but rich, actionable steps.
+      - Ensure all HTML tags are correctly opened and closed.
+
       CRITICAL JSON FORMATTING RULES:
       1. ABSOLUTELY NO CONVERSATIONAL TEXT, NO INTRODUCTIONS.
       2. RETURN EXACTLY AND ONLY THE RAW VALID JSON OBJECT.

@@ -1,8 +1,7 @@
+import 'dotenv/config';
 import prisma from './src/db.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { buildMealSlots } from './src/utils/plannerUtils.js';
-import dotenv from 'dotenv';
-dotenv.config();
 
 
 
@@ -22,8 +21,7 @@ async function run() {
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-      generationConfig: { responseMimeType: "application/json" }
+      model: "gemini-2.5-flash-lite",
     });
 
     const prompt = `
@@ -38,21 +36,24 @@ async function run() {
 
       Return EXCLUSIVELY a JSON object with EXACTLY this structure (use realistic values instead of the dummy 0s):
       {
-        "breakfasts": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],
-        ${dailySnackCount > 0 ? `"snacks": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],` : ''}
-        "lunches": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],
-        "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ]
+        "breakfasts": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "<ol><li>...</li></ol>", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],
+        ${dailySnackCount > 0 ? `"snacks": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "<ol><li>...</li></ol>", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],` : ''}
+        "lunches": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "<ol><li>...</li></ol>", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],
+        "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "<ol><li>...</li></ol>", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ]
       }
       Ensure the arrays have exactly 7, ${totalWeeklySnacks > 0 ? totalWeeklySnacks + ', 7, and 7' : '7, and 7'} items respectively.
+
+      RECIPE INSTRUCTIONS FORMATTING RULES:
+      - The "instructions" field for each recipe MUST be a string containing a clean HTML ordered list (<ol> with <li> tags for each step).
+      - Make the steps clear, descriptive, and structured, using HTML <strong> tags to highlight key ingredients, temperatures, times, or essential techniques (e.g. "<strong>medium heat</strong>", "<strong>5 minutes</strong>", "<strong>olive oil</strong>").
+      - Keep instructions concise, token-efficient, and direct to limit Gemini API token consumption. Avoid unnecessary fluff, long conversational preambles, or forcing a high minimum number of steps. Focus on brief but rich, actionable steps.
+      - Ensure all HTML tags are correctly opened and closed.
     `;
 
-    console.log("Starting stream...");
-    const streamingResult = await model.generateContentStream(prompt);
-    let fullResponse = '';
-    for await (const chunk of streamingResult.stream) {
-      fullResponse += chunk.text();
-    }
-    console.log("Success! Length:", fullResponse.length);
+    console.log("Generating content...");
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    console.log("Success! Response text:\n", text);
   } catch(e) {
     console.error("ERROR", e);
   } finally {
