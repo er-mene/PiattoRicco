@@ -103,7 +103,7 @@ function Home() {
                 )}
                 <Link
                   to="/dashboard"
-                  className="btn btn-outline-secondary btn-lg px-4"
+                  className="btn btn-light border shadow-sm btn-lg px-4 fw-bold text-secondary"
                   id="hero-dashboard-btn"
                 >
                   Go to Dashboard
