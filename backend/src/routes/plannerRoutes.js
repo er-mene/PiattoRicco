@@ -196,8 +196,10 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
         "carbs": ${targetCarb},
         "fat": ${targetFat},
         "instructions": "<ol><li>Step 1</li><li>Step 2</li></ol>",
-        "ingredients": [{"name": "ingredient", "amount": 100, "unit": "g"}]
+        "ingredients": [{"name": "ingredient", "amount": 100, "unit": "g"}],
+        "tags": ["Tag1", "Tag2"]
       }
+      The "tags" field must contain an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]).
       Return ONLY the valid JSON object, properly escaping quotes.
     `;
 
@@ -240,7 +242,8 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
       nutritionalInfo: {
         usedIngredients: used,
         missedIngredients: missed,
-        ingredientsList: recipeData.ingredients || []
+        ingredientsList: recipeData.ingredients || [],
+        tags: recipeData.tags || []
       }
     };
 
@@ -323,11 +326,12 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
 
       Return EXCLUSIVELY a JSON object with EXACTLY this structure (use realistic values instead of the dummy 0s):
       {
-        "breakfasts": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],
-        ${dailySnackCount > 0 ? `"snacks": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],` : ''}
-        "lunches": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ],
-        "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}] } ]
+        "breakfasts": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],
+        ${dailySnackCount > 0 ? `"snacks": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],` : ''}
+        "lunches": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],
+        "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ]
       }
+      Each recipe in the lists must include a "tags" field containing an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]).
       Ensure the arrays have exactly 7, ${totalWeeklySnacks > 0 ? totalWeeklySnacks + ', 7, and 7' : '7, and 7'} items respectively.
       CRITICAL JSON FORMATTING RULES:
       1. ABSOLUTELY NO CONVERSATIONAL TEXT, NO INTRODUCTIONS.
@@ -500,7 +504,8 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
             nutritionalInfo: {
               usedIngredients: meal.usedIngredients || [],
               missedIngredients: meal.missedIngredients || [],
-              ingredientsList: meal.ingredients || []
+              ingredientsList: meal.ingredients || [],
+              tags: meal.tags || []
             }
           });
 
@@ -616,8 +621,10 @@ Return ONLY a JSON object with this exact structure:
   "carbs": ${targetCarb},
   "fat": ${targetFat},
   "instructions": "<ol><li>Step 1</li><li>Step 2</li></ol>",
-  "ingredients": [{"name": "ingredient", "amount": 100, "unit": "g"}]
+  "ingredients": [{"name": "ingredient", "amount": 100, "unit": "g"}],
+  "tags": ["Tag1", "Tag2"]
 }
+The "tags" field must contain an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]).
 Return ONLY the JSON object, no other text.`;
 
     console.log("Asking Gemini for swap recipe, meal type:", mealTypeLabel);
@@ -656,7 +663,8 @@ Return ONLY the JSON object, no other text.`;
           nutritionalInfo: {
             usedIngredients: used,
             missedIngredients: missed,
-            ingredientsList: recipeData.ingredients || []
+            ingredientsList: recipeData.ingredients || [],
+            tags: recipeData.tags || []
           }
         }
       });

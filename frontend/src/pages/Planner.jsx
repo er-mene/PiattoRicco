@@ -357,17 +357,24 @@ export default function Planner() {
                           return (
                             <li key={entry.id} className={liClass} style={{ transition: 'all 0.3s' }}>
                               
-                              <div className="d-flex justify-content-between align-items-start mb-2">
-                                <span className={`badge ${
-                                  entry.mealType === 'BREAKFAST' ? 'bg-info text-dark' : 
-                                  entry.mealType === 'LUNCH' ? 'bg-success' : 
-                                  entry.mealType === 'DINNER' ? 'bg-primary' : 'bg-warning text-dark'
-                                }`}>
-                                  {entry.mealType}
-                                </span>
+                              <div className="d-flex justify-content-between align-items-center mb-2 gap-2">
+                                <div className="d-flex flex-wrap gap-1 align-items-center" style={{ flex: 1, minWidth: 0 }}>
+                                  <span className={`badge ${
+                                    entry.mealType === 'BREAKFAST' ? 'bg-info text-dark' : 
+                                    entry.mealType === 'LUNCH' ? 'bg-success' : 
+                                    entry.mealType === 'DINNER' ? 'bg-primary' : 'bg-warning text-dark'
+                                  }`}>
+                                    {entry.mealType}
+                                  </span>
+                                  {(entry.recipe.nutritionalInfo?.tags || []).map((tag, i) => (
+                                    <span key={i} className="badge badge-sage" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
 
                                 <button 
-                                  className="btn btn-sm btn-outline-secondary py-0 px-2"
+                                  className="btn btn-sm btn-outline-secondary py-0 px-2 flex-shrink-0"
                                   onClick={() => handleSwapRecipe(entry.id)}
                                   disabled={swappingId === entry.id || entry.isLocked}
                                   title="Change Recipe"
@@ -428,19 +435,25 @@ export default function Planner() {
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content border-0 shadow-lg">
               
-              <div className="modal-header bg-body-tertiary">
-                <div className="d-flex align-items-center gap-2">
-                  <h4 className="modal-title fw-bold text-primary mb-0">{selectedRecipe.title}</h4>
-                  
-                  {/* Badge AI Chef: Visibile esclusivamente per le ricette generate da Gemini */}
-                  {selectedRecipe.sourceType === 'AI_GENERATED' && (
-                    <span className="badge text-dark border border-warning shadow-sm" style={{ background: 'linear-gradient(45deg, #FFD700, #FFA500)' }}>
-                      ✨ AI Chef Recipe
-                    </span>
-                  )}
+              <div className="modal-header bg-body-tertiary d-flex flex-column align-items-start gap-2">
+                <div className="d-flex justify-content-between align-items-center w-100">
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <h4 className="modal-title fw-bold text-primary mb-0">{selectedRecipe.title}</h4>
+                    {selectedRecipe.sourceType === 'AI_GENERATED' && (
+                      <span className="badge text-dark border border-warning shadow-sm" style={{ background: 'linear-gradient(45deg, #FFD700, #FFA500)' }}>
+                        ✨ AI Chef Recipe
+                      </span>
+                    )}
+                  </div>
+                  <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
                 </div>
-                
-                <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
+                <div className="d-flex flex-wrap gap-1">
+                  {(selectedRecipe.nutritionalInfo?.tags || []).map((tag, i) => (
+                    <span key={i} className="badge badge-sage" style={{ fontSize: '0.75rem' }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
               
                 <div className="modal-body p-4">

@@ -322,7 +322,14 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="card-body d-flex flex-column">
-                      <div className="badge bg-dark text-white mb-2 align-self-start small">{entry.mealType}</div>
+                      <div className="d-flex flex-wrap gap-1 mb-2">
+                        <span className="badge bg-dark text-white small">{entry.mealType}</span>
+                        {(entry.recipe.nutritionalInfo?.tags || []).map((tag, i) => (
+                          <span key={i} className="badge badge-sage small" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                       <h6 className={`card-title fw-bold mb-0 ${entry.isLocked ? 'text-decoration-line-through text-muted' : ''}`}>
                         {entry.recipe.title}
                       </h6>
@@ -384,16 +391,25 @@ export default function Dashboard() {
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div className="modal-content border-0 rounded-4 shadow-lg">
-              <div className="modal-header border-0 pb-0">
-                <div className="d-flex align-items-center gap-2">
-                  <h5 className="fw-bold mb-0">{selectedRecipe.title}</h5>
-                  {selectedRecipe.sourceType === 'AI_GENERATED' && (
-                    <span className="badge text-dark border border-warning shadow-sm" style={{ background: 'linear-gradient(45deg, #FFD700, #FFA500)' }}>
-                      ✨ AI Chef Recipe
-                    </span>
-                  )}
+              <div className="modal-header border-0 pb-0 d-flex flex-column align-items-start gap-2">
+                <div className="d-flex justify-content-between align-items-center w-100">
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <h5 className="fw-bold mb-0">{selectedRecipe.title}</h5>
+                    {selectedRecipe.sourceType === 'AI_GENERATED' && (
+                      <span className="badge text-dark border border-warning shadow-sm" style={{ background: 'linear-gradient(45deg, #FFD700, #FFA500)' }}>
+                        ✨ AI Chef Recipe
+                      </span>
+                    )}
+                  </div>
+                  <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
                 </div>
-                <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
+                <div className="d-flex flex-wrap gap-1">
+                  {(selectedRecipe.nutritionalInfo?.tags || []).map((tag, i) => (
+                    <span key={i} className="badge badge-sage" style={{ fontSize: '0.75rem' }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
               
               <div className="modal-body p-4">

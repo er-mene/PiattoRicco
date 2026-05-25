@@ -185,10 +185,15 @@ function QuickRecipe() {
                 <div className="d-flex justify-content-between align-items-start mb-4 border-bottom border-secondary pb-3">
                   <div>
                     <h2 className="card-title fw-bold text-primary mb-2">{recipe.title}</h2>
-                    <div>
+                    <div className="d-flex flex-wrap gap-1 align-items-center">
                       <span className="badge bg-dark border shadow-sm fs-6">
                         {mealType}
                       </span>
+                      {(recipe.nutritionalInfo?.tags || []).map((tag, i) => (
+                        <span key={i} className="badge badge-sage fs-6">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
                   <button 
