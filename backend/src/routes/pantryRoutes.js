@@ -4,16 +4,15 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// -----------------------------------------------------------------------------
-// ROTTE DELLA DISPENSA (PANTRY)
-// Questo file espone gli endpoint per la gestione del magazzino ingredienti
-// personale dell'utente (CRUD operations).
-// -----------------------------------------------------------------------------
+/**
+ * Pantry Routes.
+ * Exposes API endpoints for managing the user's personal pantry stock (CRUD operations).
+ */
 
 /**
  * GET /:userId
- * Recupera tutti gli ingredienti presenti nella dispensa dell'utente.
- * I risultati sono ordinati cronologicamente dal più recente.
+ * Retrieves all items in the user's pantry.
+ * Results are ordered chronologically from most recent.
  */
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
@@ -22,7 +21,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
     
     const items = await prisma.pantryItem.findMany({
       where: { userId: userId },
-      include: { ingredient: true }, // Assicura il caricamento dei dettagli dell'ingrediente relazionato
+      include: { ingredient: true }, // Ensure associated ingredient details are loaded
       orderBy: { createdAt: 'desc' }
     });
     res.status(200).json(items);
@@ -34,8 +33,8 @@ router.get('/:userId', requireAuth, async (req, res) => {
 
 /**
  * POST /
- * Aggiunge un nuovo ingrediente alla dispensa dell'utente.
- * Se l'ingrediente globale (Dizionario Ingredienti) non esiste, lo crea al volo (Upsert).
+ * Adds a new ingredient to the user's pantry.
+ * Creates the global ingredient record dynamically if it does not exist.
  */
 router.post('/', requireAuth, async (req, res) => {
   try {
@@ -61,7 +60,7 @@ router.post('/', requireAuth, async (req, res) => {
       create: { name: ingredientName } 
     });
 
-    // Creazione della voce in dispensa collegando l'utente e l'ingrediente tramite relazioni Prisma
+    // Create pantry item, linking the user and the ingredient via Prisma relationships
     const newItem = await prisma.pantryItem.create({
       data: { 
         user: { connect: { id: userId } },
@@ -82,15 +81,15 @@ router.post('/', requireAuth, async (req, res) => {
 });
 /**
  * PUT /:id
- * Aggiorna la quantità e/o l'unità di misura di un ingrediente già in dispensa.
- * Permette di azzerare/svuotare i valori settandoli esplicitamente a null.
+ * Updates quantity and/or unit of measurement for an existing pantry item.
+ * Allows clearing values by setting them explicitly to null.
  */
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { quantity, unit } = req.body;
     
-    // Controllo di Sicurezza (IDOR): verifica che l'elemento esista e appartenga all'utente chiamante
+    // Security Check (IDOR prevention): verify the item exists and belongs to the authenticated user
     const item = await prisma.pantryItem.findUnique({ where: { id } });
     if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
     
@@ -104,7 +103,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     const updatedItem = await prisma.pantryItem.update({
       where: { id: id },
       data: {
-        // La conversione garantisce che stringhe vuote vengano salvate como NULL nel DB
+        // Enforce null validation to store empty inputs as NULL in the database
         quantity: (quantity === null || quantity === '' || quantity === undefined) ? null : parseFloat(quantity),
         unit: unit || null
       },
@@ -118,13 +117,13 @@ router.put('/:id', requireAuth, async (req, res) => {
 });
 /**
  * DELETE /:id
- * Rimuove definitivamente un ingrediente dalla dispensa dell'utente.
+ * Permanently removes an ingredient from the user's pantry.
  */
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Controllo di Sicurezza (IDOR)
+    // Security Check (IDOR prevention)
     const item = await prisma.pantryItem.findUnique({ where: { id } });
     if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
     

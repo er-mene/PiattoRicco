@@ -6,21 +6,20 @@ import prisma from '../db.js';
 
 const router = express.Router();
 
-// -----------------------------------------------------------------------------
-// ROTTE DI AUTENTICAZIONE
-// Gestisce la registrazione, il login e il rilascio dei token JWT.
-// Include una protezione anti-bruteforce (Rate Limiting).
-// -----------------------------------------------------------------------------
+/**
+ * Authentication Routes.
+ * Handles registration, login, JWT token issuance, and implements rate limiting.
+ */
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // Finestra di 15 minuti
-  max: 10, // Massimo 10 richieste per IP per evitare attacchi brute-force
+  windowMs: 15 * 60 * 1000, // 15-minute window
+  max: 10, // Limit each IP to 10 requests per window to prevent brute-force attacks
   message: { error: 'Too many requests, please try again later.' }
 });
 
 /**
  * POST /register
- * Crea un nuovo account utente crittografando in modo sicuro la password tramite bcrypt.
+ * Creates a new user account, securely hashing the password using bcrypt.
  */
 router.post('/register', authLimiter, async (req, res) => {
   const { email, password } = req.body;
@@ -32,17 +31,17 @@ router.post('/register', authLimiter, async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    // Verifica l'unicità dell'indirizzo email nel database
+    // Check if the email address is already taken
     const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existingUser) {
       return res.status(400).json({ error: 'Email is already registered' });
     }
 
-    // Cifra la password aggiungendo un salt generato casualmente (cost factor 10)
+    // Hash the password using a randomly generated salt with cost factor 10
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Registra permanentemente il nuovo utente nel database
+    // Save the new user record in the database
     const newUser = await prisma.user.create({
       data: {
         email: normalizedEmail,
@@ -59,7 +58,7 @@ router.post('/register', authLimiter, async (req, res) => {
 
 /**
  * POST /login
- * Autentica l'utente e restituisce un token JWT firmato, valido per l'accesso alle rotte protette.
+ * Authenticates a user and returns a signed JWT token for accessing protected routes.
  */
 router.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
@@ -71,23 +70,23 @@ router.post('/login', authLimiter, async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    // Recupera l'utente tramite email
+    // Retrieve user by email
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Valida la password confrontandola con l'hash memorizzato in sicurezza
+    // Validate the password against the stored secure hash
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Genera un token JWT contentente ID e Email, valido per 7 giorni
+    // Generate a JWT containing user ID and email, valid for 7 days
     const token = jwt.sign(
       { userId: user.id, email: user.email }, 
       process.env.JWT_SECRET, 
-      { expiresIn: '7d' } // Durata del token
+      { expiresIn: '7d' } // Token duration
     );
 
     res.json({ 

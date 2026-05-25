@@ -4,24 +4,24 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function Planner() {
   const navigate = useNavigate();
-  // Stato principale del piano alimentare settimanale
+  // State variables for weekly meal plan schedule
   const [mealPlan, setMealPlan] = useState(null);
   
-  // Stati per la gestione del caricamento e degli errori
+  // Loading, error, and UI mode state variables
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [progressMessage, setProgressMessage] = useState(''); // Messaggi di progresso SSE
-  const [isStrictMode, setIsStrictMode] = useState(false); // Modalità Strict Pantry
+  const [progressMessage, setProgressMessage] = useState(''); // SSE progress messages
+  const [isStrictMode, setIsStrictMode] = useState(false); // Strict Pantry Mode flag
   
-  // Stati per le interazioni UI (swap e visualizzazione dettagli)
+  // UI interactive state variables (swap loading states, modal detail views, and active day)
   const [swappingId, setSwappingId] = useState(null);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
-  const [activeDay, setActiveDay] = useState(null); // Giorno attivo visualizzato nella vista responsive Mobile
+  const [activeDay, setActiveDay] = useState(null); // Active tab date for responsive mobile views
 
 
   /**
-   * Recupera il piano alimentare attivo dell'utente dal backend.
-   * Raggruppa in automatico i risultati per data per facilitare il rendering.
+   * Fetches the user's active weekly meal plan from the database.
+   * Automatically groups entries by date for rendering layout blocks.
    */
   const fetchActivePlan = async () => {
     try {
@@ -32,7 +32,7 @@ export default function Planner() {
         const grouped = groupEntriesByDay(data.entries);
         setMealPlan(grouped);
         
-        // Inizializza il giorno attivo per la vista mobile (oggi se presente nel piano, altrimenti il primo giorno)
+        // Set default active tab on mobile view (today if in plan, or first day otherwise)
         const sortedDates = Object.keys(grouped).sort();
         if (sortedDates.length > 0) {
           const todayStr = new Date().toISOString().split('T')[0];
@@ -75,7 +75,7 @@ export default function Planner() {
           return;
         }
 
-        // Configurazione per leggere lo stream di eventi Server-Sent Events (SSE)
+        // Configure stream reader for Server-Sent Events (SSE)
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -114,11 +114,11 @@ export default function Planner() {
       }
     };
   const handleSwapRecipe = async (entryId) => {
-    setSwappingId(entryId); // Mostra il loader sul singolo bottone
+    setSwappingId(entryId); // Enable loading state for individual recipe button
     try {
       const response = await fetchWithAuth(`/api/planner/swap/${entryId}`, { method: 'PUT' });
       if (response.ok) {
-        await fetchActivePlan(); // Ricarica il piano aggiornato
+        await fetchActivePlan(); // Refresh plan data
       } else {
         const result = await response.json();
         alert(result.error || "Failed to swap recipe.");
@@ -126,18 +126,17 @@ export default function Planner() {
     } catch (error) {
       alert("Failed to swap recipe.");
     } finally {
-      setSwappingId(null); // Rimuove il loader
+      setSwappingId(null); // Disable loading state
     }
   };
 
   /**
-   * Cambia lo stato "Mangiato" (isLocked) di un pasto.
-   * Utilizza l'approccio dell'Aggiornamento Ottimistico (Optimistic UI Update)
-   * per garantire un'esperienza utente immediata, mentre salva i dati in background.
+   * Toggles completion status (isLocked) of a meal entry.
+   * Utilizes optimistic UI updates to ensure immediate visual feedback while saving changes.
    */
   const handleToggleEaten = async (entryId, currentStatus) => {
     try {
-      // 1. Aggiornamento Ottimistico della UI
+      // 1. Optimistic UI update
       const updatedPlan = { ...mealPlan };
       for (let day in updatedPlan) {
         const entryIndex = updatedPlan[day].findIndex(e => e.id === entryId);
@@ -147,7 +146,7 @@ export default function Planner() {
       }
       setMealPlan(updatedPlan);
 
-      // 2. Chiamata API asincrona in background per la persistenza su database
+      // 2. Persistent API update in background
       await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -171,9 +170,8 @@ export default function Planner() {
     return new Date(dateString).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   };
 
-  // Calcolo degli ingredienti della dispensa effettivamente utilizzati
-  // Se l'IA usa sempre e solo 1 o 2 ingredienti (es. solo uova) in tutte le ricette, 
-  // significa che la dispensa è troppo vuota.
+  // Compute count of unique pantry items used.
+  // Warning triggers if AI keeps recommending same minimal base ingredients due to a sparse pantry.
   let uniqueUsedIngredientsCount = 0;
   let totalMealsCount = 0;
   if (mealPlan) {
@@ -188,7 +186,7 @@ export default function Planner() {
     uniqueUsedIngredientsCount = usedIngredientsSet.size;
   }
   
-  // Mostra l'avviso se l'intero piano settimanale si basa su 3 o meno ingredienti della dispensa
+  // Warn if weekly menu relies on 3 or fewer unique pantry ingredients
   const showRepetitiveWarning = mealPlan && totalMealsCount > 0 && uniqueUsedIngredientsCount <= 3;
 
   return (
@@ -266,7 +264,7 @@ export default function Planner() {
 
         {mealPlan && (
           <>
-            {/* Selettore dei Giorni Orizzontale (Visibile SOLO su Mobile tramite Bootstrap d-md-none) */}
+            {/* Horizontal Day Selector tabs (Visible on Mobile only) */}
             <div className="d-block d-md-none mb-4 overflow-x-auto hide-scrollbar p-2 bg-dark rounded-4 shadow-sm">
               <ul className="nav nav-pills flex-nowrap gap-2">
                 {Object.keys(mealPlan).sort().map((dateStr) => {
@@ -293,20 +291,20 @@ export default function Planner() {
             <div className="row g-4 mt-2 justify-content-center">
               {Object.keys(mealPlan).sort().map((dateStr) => {
                 
-                // Calcola il totale delle calorie unicamente per le ricette consumate (spuntate)
+                // Calculate total calories consumed (checked meals)
                 const consumedCals = mealPlan[dateStr]
                   .filter(e => e.isLocked)
                   .reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
 
                 const dayEntries = mealPlan[dateStr];
                 
-                // Calcola i totali pianificati per l'intera giornata (Goal)
+                // Calculate planned targets for the full day (Goal)
                 const totalCals = dayEntries.reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
                 const totalPro = dayEntries.reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
                 const totalCarbs = dayEntries.reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
                 const totalFat = dayEntries.reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
 
-                // Calcola i totali reali consumati dall'utente (Actual)
+                // Calculate actual totals consumed (Actual)
                 const eatenCals = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
                 const eatenPro = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
                 const eatenCarbs = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
@@ -318,7 +316,7 @@ export default function Planner() {
                   <div className={`col-md-6 col-lg-4 col-xxl-3 ${isSelectedOnMobile ? 'd-block' : 'd-none d-md-block'}`} key={dateStr}>
                     <div className="card shadow-sm h-100 border-0 hover-card">
                     
-                    {/* Intestazione della Card Giornaliera */}
+                    {/* Daily Card Header */}
                     <div className="card-header bg-dark text-white p-3">
                       <div className="d-flex justify-content-between align-items-center mb-2">
                         <h5 className="card-title text-capitalize mb-0">{formatDate(dateStr)}</h5>
@@ -327,7 +325,7 @@ export default function Planner() {
                         </span>
                       </div>
                       
-                      {/* Riepilogo Progressi Macronutrienti: Mostra il rapporto Consumato / Generato */}
+                      {/* Macronutrient Progress Summary: Shows the Consumed / Generated ratio */}
                       <div className="d-flex justify-content-between text-light opacity-75" style={{ fontSize: '0.8rem' }}>
                         <div>
                           <strong>Pro:</strong> {mealPlan[dateStr].filter(e=>e.isLocked).reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0).toFixed(0)} / 
@@ -351,7 +349,7 @@ export default function Planner() {
                           const info = entry.recipe.nutritionalInfo || {};
                           const missed = info.missedIngredients || [];
                           
-                          // Stile dinamico: i pasti consumati appaiono disabilitati (grigi e opachi)
+                          // Dynamic styling: completed/eaten meals appear disabled (gray and opaque)
                           const liClass = entry.isLocked ? 'list-group-item p-3 position-relative bg-body-tertiary opacity-50' : 'list-group-item p-3 position-relative';
                           
                           return (
@@ -384,7 +382,7 @@ export default function Planner() {
                               </div>
                               
                               <div className="d-flex align-items-center gap-2 mb-2">
-                                {/* Checkbox interattiva legata allo stato del database */}
+                                {/* Interactive completed checklist toggle */}
                                 <input 
                                   className="form-check-input mt-0 fs-5" 
                                   type="checkbox" 
@@ -429,7 +427,7 @@ export default function Planner() {
           </>
         )}
       </div>
-      {/* Modale di Dettaglio Ricetta */}
+      {/* Recipe details modal */}
       {selectedRecipe && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -473,7 +471,7 @@ export default function Planner() {
                         </li>
                       ))}
 
-                      {/* Fallback in assenza di ingredienti */}
+                      {/* Fallback if ingredients list is empty */}
                       {(!selectedRecipe.nutritionalInfo?.ingredientsList || selectedRecipe.nutritionalInfo.ingredientsList.length === 0) && (
                         <li className="list-group-item px-0 py-1 border-0 text-muted fst-italic">Ingredients list not available.</li>
                       )}

@@ -4,7 +4,7 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function Profile() {
   const navigate = useNavigate();
-  // Stato del caricamento e dei messaggi di notifica UI
+  // Loading and UI notification states
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -22,7 +22,7 @@ export default function Profile() {
     'Mediterranean', 'Whole30', 'Flexitarian', 'Carnivore'
   ];
 
-  // Modello dati del modulo del profilo (Macronutrienti, Allergie, Diete e Cucine preferite)
+  // Profile form state (macronutrient targets, excluded ingredients, diets, cuisines)
   const [formData, setFormData] = useState({
     dailyCalories: 2000,
     dailyProtein: 150,
@@ -33,7 +33,7 @@ export default function Profile() {
     diets: []
   });
 
-  // Gestione dinamica dei lucchetti per bloccare specifici macro durante il ricalcolo
+  // Lock states to freeze specific macros during auto-recalculation
   const [locked, setLocked] = useState({
     dailyCalories: false,
     dailyProtein: false,
@@ -73,12 +73,12 @@ export default function Profile() {
     fetchProfile();
   }, [navigate]);
 
-  // Restituisce il numero di lucchetti attualmente attivi
+  // Returns the count of currently locked macros
   const getLockedCount = () => {
     return Object.values(locked).filter(Boolean).length;
   };
 
-  // Attiva/Disattiva un lucchetto (massimo 2 bloccati contemporaneamente)
+  // Toggles macro lock (maximum 2 locked simultaneously)
   const toggleLock = (field) => {
     if (locked[field]) {
       setLocked({ ...locked, [field]: false });
@@ -88,9 +88,9 @@ export default function Profile() {
   };
 
   /**
-   * Event Handler attivato quando l'utente clicca fuori da un input di testo (blur).
-   * Applica una validazione matematica severa: le Calorie devono sempre corrispondere
-   * all'esatta somma energetica dei Macronutrienti (Proteine x4, Carboidrati x4, Grassi x9).
+   * Input blur event handler.
+   * Enforces mathematical alignment: total calories must always equal the sum of macronutrients
+   * (Protein x4, Carbs x4, Fat x9).
    */
   const handleBlur = () => {
     if (!locked.dailyCalories) {
@@ -109,7 +109,7 @@ export default function Profile() {
     const name = e.target.name;
     let newValue;
     
-    // Campi testuali non subiscono la validazione numerica dei macro
+    // Text inputs do not undergo macro numerical validation
     if (name === 'excludedIngredients') {
       setFormData({ ...formData, [name]: e.target.value });
       return;
@@ -126,7 +126,7 @@ export default function Profile() {
 
     const newData = { ...formData, [name]: newValue };
 
-    // --- SCENARIO 1: L'utente sta modificando direttamente le Calorie Totali ---
+    // --- SCENARIO 1: Direct editing of Total Calories ---
     if (name === 'dailyCalories') {
       const lockedMacros = ['dailyProtein', 'dailyCarbs', 'dailyFat'].filter(m => locked[m]);
 
@@ -142,9 +142,8 @@ export default function Profile() {
 
         let remainingKcal = newValue - spentKcal;
 
-        // Correzione di Sicurezza: Se le calorie rimanenti diventano negative durante la digitazione,
-        // le forziamo a 0 per impedire macro negativi. Non alziamo artificialmente dailyCalories
-        // per permettere all'utente di finire di digitare il numero.
+        // Safety check: if remaining calories drop below zero during typing,
+        // clamp to 0 to prevent negative macros without artificially raising total calories.
         if (remainingKcal < 0) {
           remainingKcal = 0;
         }
@@ -175,7 +174,7 @@ export default function Profile() {
         }
       }
     } 
-    // --- SCENARIO 2: L'utente sta modificando un Macronutriente (Proteine, Carboidrati, Grassi) ---
+    // --- SCENARIO 2: Editing a specific Macronutriente (Protein, Carbs, Fat) ---
     else {
       const fixedFields = new Set(Object.keys(locked).filter(k => locked[k]));
       fixedFields.add(name); 
@@ -215,7 +214,7 @@ export default function Profile() {
       }
     }
 
-    // Arrotonda matematicamente tutti i valori numerici a interi
+    // Round all numerical targets to integers
     Object.keys(newData).forEach(key => {
       if (typeof newData[key] === 'number') {
         newData[key] = Math.max(0, Math.round(newData[key]));
@@ -242,30 +241,31 @@ export default function Profile() {
     setIsLoading(true);
     setMessage('');
 
-    // --- VALIDAZIONE FINALE DI SICUREZZA ---
+    // --- FINAL MATHEMATICAL VALIDATION ---
+    // Recompute values prior to saving to prevent target drift or race conditions.
     // Ricalcola i valori definitivi un istante prima del salvataggio per 
     // intercettare eventuali race condition dell'input.
     let safeData = { ...formData };
     
     if (locked.dailyCalories) {
-      // Se le Calorie sono bloccate, i macro devono adattarsi ad esse (regolando Carboidrati o Grassi)
+      // If calories are locked, adjust macronutrients (by shifting Fat/Carbs)
       const exactCalories = safeData.dailyProtein * 4 + safeData.dailyCarbs * 4 + safeData.dailyFat * 9;
       if (Math.abs(safeData.dailyCalories - exactCalories) > 1) {
          safeData.dailyFat = Math.max(0, (safeData.dailyCalories - safeData.dailyProtein * 4 - safeData.dailyCarbs * 4) / 9);
       }
     } else {
-      // Se le Calorie sono sbloccate, la priorità va ai macro e le calorie vengono sovrascritte
+      // If calories are unlocked, recalculate total calories based on macros
       safeData.dailyCalories = safeData.dailyProtein * 4 + safeData.dailyCarbs * 4 + safeData.dailyFat * 9;
     }
 
-    // Ultimo passaggio di arrotondamento prima del commit
+    // Final integer rounding pass
     Object.keys(safeData).forEach(key => {
       if (typeof safeData[key] === 'number') {
         safeData[key] = Math.round(safeData[key]);
       }
     });
 
-    // Se le Calorie sono bloccate, riassorbi il residuo di arrotondamento nei macro sbloccati
+    // Re-absorb rounding drift into unlocked macros if calories are locked
     if (locked.dailyCalories) {
       const finalSum = safeData.dailyProtein * 4 + safeData.dailyCarbs * 4 + safeData.dailyFat * 9;
       if (finalSum !== safeData.dailyCalories) {
@@ -281,7 +281,7 @@ export default function Profile() {
       }
     }
 
-    // Aggiorna la UI riflettendo i dati matematicamente garantiti
+    // Sync validated targets to form state
     setFormData(safeData);
 
     try {

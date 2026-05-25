@@ -4,11 +4,11 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function History() {
   const navigate = useNavigate();
-  // array formattato contenente i raggruppamenti per giorno
+  // Formatted array containing history groupings per day
   const [historyDays, setHistoryDays] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Stato per gestire l'apertura del modale di dettaglio
+  // State to manage recipe detail modal visibility
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function History() {
         const response = await fetchWithAuth(`/api/planner/history/${user.id}`);
         if (response.ok) {
           const entries = await response.json();
-          // Raggruppa i pasti storici in base alla data di consumazione
+          // Group history entries by consumed date
           const grouped = entries.reduce((acc, entry) => {
             const dateStr = new Date(entry.day).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
             if (!acc[dateStr]) {
@@ -31,7 +31,7 @@ export default function History() {
               };
             }
             acc[dateStr].entries.push(entry);
-            // Accumulo dinamico dei macronutrienti per calcolare il totale consumato nel giorno
+            // Dynamically accumulate daily macronutrients to calculate totals consumed per day
             acc[dateStr].totals.calories += entry.recipe.caloriesPerServing || 0;
             acc[dateStr].totals.protein += entry.recipe.proteinGramsPerServing || 0;
             acc[dateStr].totals.carbs += entry.recipe.carbsGramsPerServing || 0;
@@ -39,7 +39,7 @@ export default function History() {
             return acc;
           }, {});
 
-          // Converte l'oggetto raggruppato in un array iterabile e lo ordina cronologicamente (dal più recente)
+          // Convert the grouped object to an array and sort descending by date (most recent first)
           const daysArray = Object.keys(grouped).map(k => ({
             label: k,
             ...grouped[k]

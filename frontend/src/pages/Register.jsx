@@ -39,7 +39,7 @@ export default function Register() {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Naviga verso la vista di Login inoltrando un messaggio di benvenuto dinamico
+      // Redirect to login page and pass a dynamic success status message
       navigate('/login', { 
         state: { successMessage: 'Account created successfully! Welcome to Pantry Chef. Please log in.' } 
       });

@@ -4,18 +4,16 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// -----------------------------------------------------------------------------
-// ROTTE DEL PROFILO UTENTE E OBIETTIVI NUTRIZIONALI
-// Questo file gestisce le operazioni di salvataggio e recupero dei parametri
-// dietetici dell'utente (calorie, macronutrienti, allergie e intolleranze).
-// -----------------------------------------------------------------------------
+/**
+ * User Profile and Nutritional Goals Routes.
+ * Manages saving and retrieving the user's dietary parameters (calories, macros, allergies, and preferences).
+ */
 
 /**
  * POST /
- * Salva o aggiorna il profilo nutrizionale e le preferenze dietetiche dell'utente.
- * Utilizza l'operazione di upsert per creare un nuovo record se non esiste,
- * oppure aggiornarlo se è già presente. L'ID utente viene estratto in modo sicuro
- * dal token JWT per prevenire manomissioni.
+ * Saves or updates the user's nutritional profile and dietary preferences.
+ * Uses upsert operations to create a new record if missing, or update if present.
+ * User ID is securely retrieved from the JWT token to prevent client tampering.
  */
 router.post('/', requireAuth, async (req, res) => {
   const userId = req.user.userId;
@@ -86,20 +84,19 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * GET /:userId
- * Recupera il profilo nutrizionale completo (inclusi gli obiettivi calorici
- * e le intolleranze) di uno specifico utente. Implementa un controllo IDOR
- * per assicurare che un utente possa accedere solo ai propri dati.
+ * Retrieves the complete nutritional profile (including calorie goals and intolerances)
+ * for a specific user. Implements IDOR checks to ensure users can only access their own data.
  */
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     
-    // Protezione IDOR: verifica che l'utente loggato stia richiedendo i propri dati
+    // IDOR protection: verify the logged-in user is requesting their own data
     if (userId !== req.user.userId) {
       return res.status(403).json({ error: 'Forbidden: Cannot access other users data' });
     }
     
-    // Recupera l'obiettivo nutrizionale dal database
+    // Retrieve the nutritional goal from the database
     const goal = await prisma.nutritionalGoal.findUnique({
       where: { userId: userId }
     });
@@ -109,8 +106,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
     });
 
     if (!goal) {
-      // Restituisce 404 se il profilo non è ancora stato configurato
-      // permettendo al frontend di mostrare i valori di default
+      // Return 404 if profile is not configured yet, letting frontend fall back to default values
       return res.status(404).json({ message: 'Profile not found' });
     }
 

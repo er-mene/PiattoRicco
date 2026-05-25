@@ -1,7 +1,7 @@
 /**
- * Wrapper dell'API Fetch nativa.
- * Inietta automaticamente l'header di Autorizzazione (Bearer Token) in tutte le richieste
- * in uscita verso il backend, garantendo l'autenticazione delle sessioni.
+ * Native Fetch API wrapper.
+ * Automatically injects the Authorization header (Bearer Token) into all outgoing
+ * backend requests to secure authenticated sessions.
  */
 export async function fetchWithAuth(url, options = {}) {
   const token = localStorage.getItem('token');
@@ -18,13 +18,13 @@ export async function fetchWithAuth(url, options = {}) {
 
   const response = await fetch(url, finalOptions);
   
-  // Gestione globale degli errori di autenticazione:
-  // Se il backend restituisce 401 (Token Scaduto o Non Valido),
-  // l'utente viene forzatamente disconnesso e rimandato alla pagina di login.
+  // Global auth failure handling:
+  // If the backend returns 401 (Unauthorized/Expired Token),
+  // clear credentials and force redirect to login.
   if (response.status === 401) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = '/login'; // Reindirizzamento al Login
+    window.location.href = '/login'; // Redirect to login
   }
 
   return response;

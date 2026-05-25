@@ -1,8 +1,8 @@
-// -----------------------------------------------------------------------------
-// CONNESSIONE AL DATABASE (PRISMA ORM)
-// Inizializza e configura il client Prisma. Gestisce in automatico sia connessioni
-// dirette (Adapter PG) che connessioni ottimizzate tramite Prisma Accelerate.
-// -----------------------------------------------------------------------------
+/**
+ * Database connection setup using Prisma ORM.
+ * Automatically handles both direct PostgreSQL connections (using adapter-pg)
+ * and optimized connection pooling via Prisma Accelerate.
+ */
 
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';

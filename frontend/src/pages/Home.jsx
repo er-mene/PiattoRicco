@@ -1,21 +1,13 @@
 import { Link } from 'react-router-dom';
 
 /**
- * Home – landing page for PiattoRicco ("Digital Kitchen").
- *
- * Layout (top to bottom, easy to explain in class):
- *   1. Hero — cookbook "chapter opener" (centred column, terracotta + sage CTAs)
- *   2. Editorial band — one short mission statement on a muted cream strip
- *   3. Features — three cards from a JavaScript array + .map()
- *   4. Bottom CTA — shown only to guests (conditional && rendering)
- *
- * Styling: Bootstrap utilities + named classes in custom.css (no neon gradients).
+ * Home – landing page for PiattoRicco.
  */
 function Home() {
-  // Same auth check as App.jsx — reads JWT from localStorage (no extra state library)
+  // Check authentication status by reading local storage token
   const isAuthenticated = !!localStorage.getItem('token');
 
-  // Feature cards data — keeping content in an array teaches list rendering with .map()
+  // Feature cards data definition
   const features = [
     {
       icon: '📅',
@@ -46,13 +38,9 @@ function Home() {
   return (
     <div>
 
-      {/* ── 1. HERO — chapter opener ─────────────────────────────────────────── */}
-      {/*
-        .home-hero sets flat cream background (custom.css) — warmth from colour, not gradients.
-        Bootstrap grid caps line length like a cookbook column: col-lg-10 (wider on large screens).
-      */}
+      {/* Hero section */}
       <section className="home-hero d-flex align-items-center justify-content-center text-center py-5 position-relative">
-        {/* Sfondo Immagine Utente */}
+        {/* Wallpaper background background */}
         <div 
           className="position-absolute top-0 start-0 w-100 h-100" 
           style={{
@@ -67,7 +55,7 @@ function Home() {
         <div className="container px-3 px-md-4 position-relative" style={{ zIndex: 1 }}>
           <div className="row justify-content-center">
             <div className="col-12 col-lg-10">
-              {/* Sage badge mimics a cookbook section label ("Introduction") */}
+              {/* Promotional badges */}
               <div className="d-flex flex-wrap gap-2 justify-content-center mb-4">
                 <span className="badge badge-sage rounded-pill px-3 py-2 fs-6 fw-normal">
                   Your digital kitchen
@@ -77,7 +65,7 @@ function Home() {
                 </span>
               </div>
 
-              {/* Serif headline from global h1 rule in custom.css */}
+              {/* Title headlines */}
               <h1 className="display-4 fw-bold mb-3">
                 Your week, planned like a{' '}
                 <span className="text-primary">menu</span>
@@ -114,7 +102,7 @@ function Home() {
         </div>
       </section>
 
-      {/* ── 2. EDITORIAL BAND — short mission strip ──────────────────────────── */}
+      {/* Editorial band */}
       <section className="home-editorial-band py-5">
         <div className="container px-3 px-md-4">
           <div className="row justify-content-center text-center">
@@ -130,11 +118,7 @@ function Home() {
         </div>
       </section>
 
-      {/* ── 3. FEATURES — three recipe-style cards ───────────────────────────── */}
-      {/*
-        Responsive grid: 1 col mobile → 2 cols tablet → 3 cols desktop.
-        .hover-card adds a gentle lift on hover (transform in custom.css).
-      */}
+      {/* Features section grid */}
       <section className="py-5" id="features">
         <div className="container px-3 px-md-4">
           <div className="text-center mb-5">
@@ -163,7 +147,7 @@ function Home() {
         </div>
       </section>
 
-      {/* ── 4. BOTTOM CTA — guests only ────────────────────────────────────── */}
+      {/* Bottom CTA for guests */}
       {!isAuthenticated && (
         <section className="py-5">
           <div className="container px-3 px-md-4">

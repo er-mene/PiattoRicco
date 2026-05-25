@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 
-// Importazione delle viste (Pagine) dell'applicazione
+// Application View Imports
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
@@ -17,7 +17,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isNavOpen, setIsNavOpen] = useState(false);
-  // Verifica reattiva dello stato di autenticazione leggendo il JWT dal LocalStorage
+  // Check authentication status by checking the JWT in LocalStorage
   const isAuthenticated = !!localStorage.getItem('token');
   // On the home page the hero is full-bleed and sits flush under the navbar (no extra gap).
   const isHome = location.pathname === '/';
@@ -30,10 +30,7 @@ function App() {
 
   return (
     <div>
-      {/*
-        navbar-light + bg-body: matches the warm cream kitchen theme (see custom.css).
-        sticky-top keeps navigation visible while scrolling long pages like Planner.
-      */}
+      {/* Sticky navbar to keep navigation accessible while scrolling. */}
       <nav className={`navbar navbar-expand-lg navbar-light bg-body border-bottom shadow-sm sticky-top${isHome ? '' : ' mb-4'}`}>
         <div className="container px-3 px-md-4">
           <Link className="navbar-brand fw-bold" to="/"><img src="/assets/logo.png" alt="🍽️ PiattoRicco" height="80" className="d-inline-block align-top" /></Link>
@@ -62,7 +59,7 @@ function App() {
                 </>
               )}
 
-              {/* Rendering condizionale della barra di navigazione basato sullo stato di login */}
+              {/* Conditional auth buttons rendering based on authentication state */}
               {isAuthenticated ? (
                 <button onClick={handleLogout} className="btn btn-outline-secondary ms-3 btn-sm">
                   Log Out
@@ -78,10 +75,7 @@ function App() {
         </div>
       </nav>
 
-      {/*
-        Home owns its own .container per section for a full-bleed cookbook layout.
-        All other routes use Bootstrap's standard .container on <main>.
-      */}
+      {/* Main layout container routing */}
       <main className={isHome ? '' : 'container px-3 px-md-4'}>
         <Routes>
           <Route path="/" element={<Home />} />

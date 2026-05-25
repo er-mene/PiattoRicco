@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 export default function Login() {
   const navigate = useNavigate();
-  // Hook per intercettare il payload di stato (messaggi di successo) proveniente dal router
+  // Hook to intercept location state (e.g. success messages) passed from other pages
   const location = useLocation(); 
   const successMessage = location.state?.successMessage;
 
@@ -55,14 +55,14 @@ export default function Login() {
           <div className="card-body p-5">
             <h2 className="text-center mb-4">Welcome Back</h2>
             
-            {/* Alert di Successo: Mostrato al termine di una registrazione andata a buon fine */}
+            {/* Success Alert: Shown after a successful registration redirection */}
             {successMessage && (
               <div className="alert alert-success text-center fw-bold">
                 {successMessage}
               </div>
             )}
 
-            {/* Alert di Errore: Mostrato se le credenziali sono invalide */}
+            {/* Error Alert: Shown if credentials are invalid or login fails */}
             {error && <div className="alert alert-danger">{error}</div>}
 
             <form onSubmit={handleSubmit}>

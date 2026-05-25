@@ -12,10 +12,10 @@ const autocompleteLimiter = rateLimit({
   message: { error: 'Too many autocomplete requests. Please try again later.' }
 });
 
-// -----------------------------------------------------------------------------
-// ROTTE DEGLI INGREDIENTI
-// Gestisce le chiamate relative agli ingredienti (es. Autocomplete via AI).
-// -----------------------------------------------------------------------------
+/**
+ * Ingredients Routes.
+ * Handles queries related to food ingredients (e.g. autocomplete suggestions).
+ */
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
@@ -28,22 +28,22 @@ const model = genAI.getGenerativeModel({
 
 /**
  * GET /autocomplete
- * Fornisce suggerimenti in tempo reale (autocomplete) mentre l'utente digita
- * il nome di un ingrediente nella dispensa. Utilizza la cache del database e chiama Gemini AI
- * solo se ci sono meno di 5 suggerimenti salvati con lo stesso prefisso.
+ * Provides real-time autocompletion suggestions as the user types an ingredient.
+ * Uses database-backed caching, querying Gemini AI only if fewer than 5 matching
+ * ingredients are cached with the given prefix.
  */
 router.get('/autocomplete', requireAuth, autocompleteLimiter, async (req, res) => {
   try {
     const { query } = req.query;
     
-    // Previene chiamate API inutili se la query è troppo corta
+    // Prevent unnecessary API calls if query prefix is too short
     if (!query || query.length < 2) {
       return res.json([]);
     }
 
     const normalizedQuery = query.trim().toLowerCase();
 
-    // 1. Cerca se ci sono almeno 5 ingredienti con questo prefisso nel database
+    // 1. Check if we already have at least 5 ingredients in the local DB cache
     let dbIngredients = await prisma.ingredient.findMany({
       where: {
         name: {
@@ -54,7 +54,7 @@ router.get('/autocomplete', requireAuth, autocompleteLimiter, async (req, res) =
       take: 5
     });
 
-    // 2. Se ci sono meno di 5 elementi, chiama Gemini per suggerimenti aggiuntivi
+    // 2. If fewer than 5 matching cached items, fetch suggestions from Gemini AI
     if (dbIngredients.length < 5) {
       const prompt = `Suggest exactly 5 common food ingredients whose name starts with or closely matches: "${query}".
 Return ONLY a JSON array of objects with "name" and "id" fields. The "id" should be a unique integer.
@@ -64,11 +64,11 @@ Return ONLY the JSON array, no other text.`;
       const result = await model.generateContent(prompt);
       const text = result.response.text().trim();
       
-      // Parsing del JSON dalla risposta dell'AI, con gestione dei blocchi di codice markdown
+      // Parse the JSON response from AI, stripping potential markdown blocks if present
       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const suggestions = JSON.parse(cleanJson);
 
-      // 3. Salva i nuovi suggerimenti nel database tramite upsert per evitare duplicati
+      // 3. Persist the new suggestions to the DB using upsert to prevent duplication
       for (const sugg of suggestions) {
         const name = sugg.name.trim().toLowerCase();
         if (!name) continue;
@@ -79,7 +79,7 @@ Return ONLY the JSON array, no other text.`;
         });
       }
 
-      // 4. Esegui nuovamente la query per ottenere tutti gli ingredienti con questo prefisso nel database
+      // 4. Query the DB again to retrieve the newly populated cached ingredients
       dbIngredients = await prisma.ingredient.findMany({
         where: {
           name: {
@@ -90,9 +90,8 @@ Return ONLY the JSON array, no other text.`;
         take: 5
       });
 
-      // Fallback: Se la corrispondenza con prefisso nel DB restituisce comunque meno di 5 elementi
-      // (ad esempio se Gemini ha suggerito elementi che non iniziano esattamente con il prefisso),
-      // assicurati di includere gli ingredienti appena suggeriti da Gemini caricandoli dal database.
+      // Fallback: If prefix matching returns fewer than 5 items (e.g. Gemini returns items that
+      // do not strictly match the startsWith prefix), include all suggestions directly from DB.
       if (dbIngredients.length < 5) {
         const namesToFetch = suggestions.map(s => s.name.trim().toLowerCase());
         const fetched = await prisma.ingredient.findMany({
@@ -101,7 +100,7 @@ Return ONLY the JSON array, no other text.`;
           }
         });
         
-        // Unisci e deduplica per id
+        // Merge and deduplicate by ID
         const mergedMap = new Map();
         dbIngredients.forEach(item => mergedMap.set(item.id, item));
         fetched.forEach(item => mergedMap.set(item.id, item));
@@ -109,7 +108,7 @@ Return ONLY the JSON array, no other text.`;
       }
     }
 
-    // 5. Mappa i risultati nel formato atteso dal frontend
+    // 5. Map DB results to the structure expected by the frontend
     const responseSuggestions = dbIngredients.map(item => ({
       id: item.id,
       name: item.name

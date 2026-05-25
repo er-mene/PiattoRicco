@@ -6,7 +6,7 @@ import App from './App.jsx';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './custom.css';
 
-// Configurazione di React Query per il caching delle chiamate API e la gestione dello stato server
+// React Query configuration for caching API calls and server state management
 const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById('root')).render(

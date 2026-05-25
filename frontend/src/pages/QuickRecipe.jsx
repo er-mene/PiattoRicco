@@ -10,7 +10,7 @@ function QuickRecipe() {
   const [error, setError] = useState(null);
   const [recipe, setRecipe] = useState(null);
   
-  // Per gestire i favoriti senza database, usiamo localStorage
+  // Manage favorites with localStorage
   const [favorites, setFavorites] = useState([]);
   const [userId, setUserId] = useState(null);
 
@@ -25,7 +25,7 @@ function QuickRecipe() {
     const storedFavs = JSON.parse(localStorage.getItem(`favorites_${user.id}`)) || [];
     setFavorites(storedFavs);
 
-    // Recupera l'ultima Quick Recipe generata se esiste
+    // Fetch previously generated standalone recipe if cached
     const savedQuickRecipe = localStorage.getItem(`quick_recipe_${user.id}`);
     if (savedQuickRecipe) {
       try {
@@ -61,7 +61,7 @@ function QuickRecipe() {
       const data = await response.json();
       setRecipe(data.recipe);
       
-      // Salva nel localStorage per mantenere la ricetta tra i cambi di pagina
+      // Cache recipe to localStorage to preserve state across route changes
       localStorage.setItem(`quick_recipe_${userId}`, JSON.stringify({
         recipe: data.recipe,
         mealType,
@@ -77,15 +77,14 @@ function QuickRecipe() {
   const toggleFavorite = () => {
     if (!recipe || !userId) return;
     
-    // Controlliamo se la ricetta attuale è già nei preferiti
-    // Usiamo il titolo come ID univoco dato che l'ID è finto per le quick recipes
+    // Determine if the recipe is already favorited using recipe title as unique key
     const isFav = favorites.some(f => f.title === recipe.title);
     
     let newFavorites;
     if (isFav) {
       newFavorites = favorites.filter(f => f.title !== recipe.title);
     } else {
-      // Per compatibilità con la pagina Favorites, wrappiamo i campi
+      // Format properties to align with standard favorites page schema
       const favRecipe = {
         ...recipe,
         recipeId: recipe.id,
@@ -134,7 +133,7 @@ function QuickRecipe() {
                 border: isStrictMode ? 'none' : '1px solid var(--pr-border-color)',
                 transition: 'all 0.3s ease',
                 height: '48px',
-                marginTop: '32px' // allinea col select
+                marginTop: '32px' // Align with dropdown select input
               }}
             >
               <div className="form-check form-switch mb-0 fs-6 fs-md-5 w-100 d-flex justify-content-between align-items-center">
