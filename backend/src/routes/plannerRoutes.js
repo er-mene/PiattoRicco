@@ -174,8 +174,10 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
 
     const prompt = `
       You are an expert nutritionist. Generate exactly ONE ${mealTypeLabel} recipe.
-      ${isStrictPantryMode ? "CRITICAL RULE: YOU MUST ONLY USE THE INGREDIENTS EXACTLY AS LISTED IN THIS PANTRY: [" + pantryNames + "]. EXCEPTION: You MAY freely use these EXACT basic staples ONLY (salt, pepper, olive oil, water, garlic, onion, common spices) even if not listed. DO NOT add any other ingredients. DO NOT invent or justify new staples (e.g. no cornmeal, no flour, no butter unless explicitly listed). If an ingredient is not in the PANTRY list and is not one of the explicitly allowed staples, YOU ABSOLUTELY MUST NOT USE IT. NO EXCEPTIONS." : "Pantry ingredients to prioritize: [" + pantryNames + "]."}
+      ${isStrictPantryMode ? "CRITICAL RULE: YOU MUST ONLY USE THE INGREDIENTS EXACTLY AS LISTED IN THIS PANTRY: [" + pantryNames + "]. IMPORTANT: You do NOT have to use all the ingredients in the pantry for a single recipe! Select a logical, cohesive subset of the pantry items that go well together to make a normal, appetizing meal. EXCEPTION: You MAY freely use these EXACT basic staples ONLY (salt, pepper, olive oil, water, garlic, onion, common spices) even if not listed. DO NOT add any other ingredients. DO NOT invent or justify new staples (e.g. no cornmeal, no flour, no butter unless explicitly listed). If an ingredient is not in the PANTRY list and is not one of the explicitly allowed staples, YOU ABSOLUTELY MUST NOT USE IT. NO EXCEPTIONS." : "Pantry ingredients to prioritize: [" + pantryNames + "]."}
       
+      CRITICAL INSTRUCTION FOR VARIETY: To ensure a completely unique recipe every time, here is a random seed: ${Math.random()}. Please think outside the box and generate a highly creative and different recipe than usual!
+
       Nutritional targets for this meal:
       - Calories: ${targetCals} kcal (MUST be within ±30 kcal)
       - Protein: ${targetPro}g (MUST be within ±5g)
@@ -228,7 +230,6 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
     const finalRecipe = {
       id: crypto.randomUUID(), // fake id for frontend keys
       title: recipeData.title,
-      imageUrl: mealImages[mealType] || mealImages.LUNCH,
       instructions: recipeData.instructions,
       readyInMinutes: 30,
       servings: 1,
@@ -292,6 +293,11 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
     const dailySnackCount = mealSlots.filter(s => s.mealType === 'SNACK').length;
     const totalWeeklySnacks = dailySnackCount * 7;
 
+    const breakfastSlot = mealSlots.find(s => s.mealType === 'BREAKFAST');
+    const lunchSlot = mealSlots.find(s => s.mealType === 'LUNCH');
+    const dinnerSlot = mealSlots.find(s => s.mealType === 'DINNER');
+    const snackSlot = mealSlots.find(s => s.mealType === 'SNACK');
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
       model: "gemini-3.1-flash-lite",
@@ -301,6 +307,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
       You are an expert nutritionist. Create a practical${isStrictPantryMode ? '' : ', highly varied'} weekly meal plan.
       Daily exact target: ${goal.dailyCalories} kcal, ${goal.dailyProtein}g protein, ${goal.dailyCarbs}g carbs, ${goal.dailyFat}g fat.
       ${isStrictPantryMode ? `CRITICAL RULE: YOU MUST ONLY USE THE INGREDIENTS EXACTLY AS LISTED IN THIS PANTRY: [${pantryNames}]. 
+      IMPORTANT: You do NOT have to use all the ingredients in the pantry for a single recipe! For each recipe, select a logical, cohesive subset of the pantry items that go well together.
       EXCEPTION: You MAY freely use these EXACT basic staples ONLY (salt, pepper, olive oil, water, garlic, onion, common spices) even if not listed. DO NOT invent or justify new staples (e.g. no cornmeal, no flour, no butter unless explicitly listed). If an ingredient is not in the PANTRY list and is not one of the explicitly allowed staples, YOU ABSOLUTELY MUST NOT USE IT. NO EXCEPTIONS.
       Try your best to generate as many different recipes as possible using only these ingredients. You MUST still rigorously respect the daily calorie and macro targets. If and ONLY if you absolutely cannot create enough variety, it is acceptable to repeat recipes. The priority is to hit macros using ONLY pantry ingredients and staples.` : `Pantry ingredients: [${pantryNames}]. CRITICAL INSTRUCTION: You MUST heavily build your recipes around these pantry ingredients first! Start from what is available in the pantry, and then add ANY other ingredients needed to make the meals complex, tasty, and highly varied.`}
       
@@ -308,7 +315,11 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
       ${dietaryProfile?.diets?.length ? `DIETS TO FOLLOW: ${dietaryProfile.diets.join(', ')}.` : ''}
       ${dietaryProfile?.preferredCuisines?.length ? `PREFERRED CUISINES: ${dietaryProfile.preferredCuisines.join(', ')}.` : ''}
 
-      IMPORTANT: The numbers in the JSON structure below are purely for demonstrating the expected format. Do NOT copy them. You MUST calculate and provide realistic, varied nutritional values for each individual meal based on its actual ingredients. Ensure the sum of the meals for each day matches the exact daily target.
+      IMPORTANT: The numbers in the JSON structure below are purely for demonstrating the expected format. Do NOT copy them. Instead, YOU MUST calculate and provide realistic, TRUE nutritional values based on the ACTUAL ingredients of each specific recipe. The recipes should aim for approximately (±15% variance allowed to ensure variety and realism) these per-meal targets:
+      - BREAKFAST target: ${breakfastSlot.targets.calories} kcal, ${breakfastSlot.targets.protein}g pro, ${breakfastSlot.targets.carbs}g carb, ${breakfastSlot.targets.fat}g fat.
+      - LUNCH target: ${lunchSlot.targets.calories} kcal, ${lunchSlot.targets.protein}g pro, ${lunchSlot.targets.carbs}g carb, ${lunchSlot.targets.fat}g fat.
+      - DINNER target: ${dinnerSlot.targets.calories} kcal, ${dinnerSlot.targets.protein}g pro, ${dinnerSlot.targets.carbs}g carb, ${dinnerSlot.targets.fat}g fat.
+      ${snackSlot ? `- SNACK target (per snack): ${snackSlot.targets.calories} kcal, ${snackSlot.targets.protein}g pro, ${snackSlot.targets.carbs}g carb, ${snackSlot.targets.fat}g fat.` : ''}
 
       Return EXCLUSIVELY a JSON object with EXACTLY this structure (use realistic values instead of the dummy 0s):
       {
@@ -461,7 +472,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
       endDate.setDate(today.getDate() + 6);
 
       const newPlan = await tx.mealPlan.create({
-        data: { userId, startDate: today, endDate, planType: 'WEEKLY' }
+        data: { userId, startDate: today, endDate }
       });
 
       // 4. Preparazione dei dati delle ricette e dei rispettivi slot
@@ -481,7 +492,6 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
           recipesData.push({
             id: recipeId,
             title: meal.title,
-            imageUrl: dynamicImage,
             instructions: meal.instructions,
             caloriesPerServing: Math.round(meal.calories),
             proteinGramsPerServing: Math.round(meal.protein),
@@ -636,7 +646,6 @@ Return ONLY the JSON object, no other text.`;
       const newRecipe = await tx.recipe.create({
         data: {
           title: recipeData.title,
-          imageUrl: mealImages[currentEntry.mealType] || mealImages.LUNCH,
           instructions: recipeData.instructions,
           readyInMinutes: 30,
           servings: 1,
