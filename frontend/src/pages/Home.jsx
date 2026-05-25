@@ -51,8 +51,20 @@ function Home() {
         .home-hero sets flat cream background (custom.css) — warmth from colour, not gradients.
         Bootstrap grid caps line length like a cookbook column: col-lg-10 (wider on large screens).
       */}
-      <section className="home-hero d-flex align-items-center justify-content-center text-center py-5">
-        <div className="container px-3 px-md-4">
+      <section className="home-hero d-flex align-items-center justify-content-center text-center py-5 position-relative">
+        {/* Sfondo Immagine Utente */}
+        <div 
+          className="position-absolute top-0 start-0 w-100 h-100" 
+          style={{
+            backgroundImage: "url('/assets/images/wallpaper.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.25,
+            zIndex: 0
+          }}
+        ></div>
+        
+        <div className="container px-3 px-md-4 position-relative" style={{ zIndex: 1 }}>
           <div className="row justify-content-center">
             <div className="col-12 col-lg-10">
               {/* Sage badge mimics a cookbook section label ("Introduction") */}
