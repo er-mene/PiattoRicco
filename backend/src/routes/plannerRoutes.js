@@ -199,7 +199,7 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
         "ingredients": [{"name": "ingredient", "amount": 100, "unit": "g"}],
         "tags": ["Tag1", "Tag2"]
       }
-      The "tags" field must contain an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]).
+      The "tags" field must contain an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]). CRITICAL RULE: DO NOT include redundant meal-type tags (such as "Breakfast", "Lunch", "Dinner", "Snack", or generic labels like "Meal") in this array.
       Return ONLY the valid JSON object, properly escaping quotes.
     `;
 
@@ -331,7 +331,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
         "lunches": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ],
         "dinners": [ { "title": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "instructions": "HTML steps", "ingredients": [{"name":"...","amount":0,"unit":"g"}], "tags": ["Tag1", "Tag2"] } ]
       }
-      Each recipe in the lists must include a "tags" field containing an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]).
+      Each recipe in the lists must include a "tags" field containing an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]). CRITICAL RULE: DO NOT include redundant meal-type tags (such as "Breakfast", "Lunch", "Dinner", "Snack", or generic labels like "Meal") in this array.
       Ensure the arrays have exactly 7, ${totalWeeklySnacks > 0 ? totalWeeklySnacks + ', 7, and 7' : '7, and 7'} items respectively.
       CRITICAL JSON FORMATTING RULES:
       1. ABSOLUTELY NO CONVERSATIONAL TEXT, NO INTRODUCTIONS.
@@ -624,7 +624,7 @@ Return ONLY a JSON object with this exact structure:
   "ingredients": [{"name": "ingredient", "amount": 100, "unit": "g"}],
   "tags": ["Tag1", "Tag2"]
 }
-The "tags" field must contain an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]).
+The "tags" field must contain an array of 2-4 descriptive, short string labels in English representing the cuisine culture and dietary style (e.g. ["Italian", "Vegan", "High-Protein", "Mexican", "Vegetarian", "Gluten-Free", "Low-Carb", etc.]). CRITICAL RULE: DO NOT include redundant meal-type tags (such as "Breakfast", "Lunch", "Dinner", "Snack", or generic labels like "Meal") in this array.
 Return ONLY the JSON object, no other text.`;
 
     console.log("Asking Gemini for swap recipe, meal type:", mealTypeLabel);
