@@ -41,7 +41,7 @@ export default function Favorites() {
   };
 
   return (
-    <div className="container mt-4 mb-5">
+    <div className="mt-4 mb-5">
       <div className="d-flex flex-column flex-md-row justify-content-between align-md-items-end mb-4 gap-3">
         <div>
           <h2 className="fw-bold mb-0">Your Favorites</h2>

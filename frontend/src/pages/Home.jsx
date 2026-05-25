@@ -1,21 +1,21 @@
 import { Link } from 'react-router-dom';
 
 /**
- * Home – landing page for PiattoRicco.
+ * Home – landing page for PiattoRicco ("Digital Kitchen").
  *
- * Layout (Bootstrap responsive grid):
- *   - Full-width hero section with a headline, subtitle and CTA buttons
- *   - Features grid: 3 columns on desktop (col-md-4), 1 column on mobile
+ * Layout (top to bottom, easy to explain in class):
+ *   1. Hero — cookbook "chapter opener" (centred column, terracotta + sage CTAs)
+ *   2. Editorial band — one short mission statement on a muted cream strip
+ *   3. Features — three cards from a JavaScript array + .map()
+ *   4. Bottom CTA — shown only to guests (conditional && rendering)
  *
- * We use Bootstrap utility classes for spacing, typography and color,
- * and only a handful of inline styles where a CSS variable value is needed
- * directly (e.g. gradient text) to keep the code clean and explainable.
+ * Styling: Bootstrap utilities + named classes in custom.css (no neon gradients).
  */
 function Home() {
-  // Check auth state from localStorage – same pattern used in App.jsx
+  // Same auth check as App.jsx — reads JWT from localStorage (no extra state library)
   const isAuthenticated = !!localStorage.getItem('token');
 
-  // List of app features shown in the card grid below the hero
+  // Feature cards data — keeping content in an array teaches list rendering with .map()
   const features = [
     {
       icon: '🍽️',
@@ -41,140 +41,93 @@ function Home() {
       link: '/pantry',
       linkLabel: 'Open Pantry',
     },
-    {
-      icon: '❤️',
-      title: 'Favourite Recipes',
-      description:
-        'Save the meals you love and revisit them anytime. Build your own personal recipe book over time.',
-      link: '/favorites',
-      linkLabel: 'View Favourites',
-    },
-    {
-      icon: '🕐',
-      title: 'Meal History',
-      description:
-        'Review every AI-generated suggestion you have ever received. Great for spotting patterns in your diet.',
-      link: '/history',
-      linkLabel: 'View History',
-    },
-    {
-      icon: '👤',
-      title: 'Personal Profile',
-      description:
-        'Set your daily calorie target and pick your favourite cuisines so the AI recommendations always match your taste.',
-      link: '/profile',
-      linkLabel: 'Edit Profile',
-    },
   ];
 
   return (
-    // Outer wrapper – full viewport height hero + features section below
     <div>
 
-      {/* ── HERO SECTION ─────────────────────────────────────────────────────── */}
+      {/* ── 1. HERO — chapter opener ─────────────────────────────────────────── */}
       {/*
-        We use a Bootstrap utility class for the minimum viewport height and
-        flexbox utilities (d-flex, align-items-center) to vertically centre
-        the content.  The subtle radial gradient background is achieved with
-        a single inline style that references our CSS custom property.
+        .home-hero sets flat cream background (custom.css) — warmth from colour, not gradients.
+        Bootstrap grid caps line length like a cookbook column: col-lg-10 (wider on large screens).
       */}
-      <section
-        className="d-flex align-items-center justify-content-center text-center py-5"
-        style={{
-          minHeight: '70vh',
-          background:
-            'radial-gradient(ellipse at 50% 0%, rgba(235,94,40,0.15) 0%, transparent 65%)',
-        }}
-      >
-        <div className="container">
-          {/* Badge pill above the headline */}
-          <span
-            className="badge rounded-pill mb-4 px-3 py-2 fs-6 fw-normal"
-            style={{
-              background: 'rgba(235,94,40,0.15)',
-              color: 'var(--pr-primary)',
-              border: '1px solid rgba(235,94,40,0.3)',
-            }}
-          >
-            🤖 AI-Powered Meal Planning
-          </span>
+      <section className="home-hero d-flex align-items-center justify-content-center text-center py-5">
+        <div className="container px-3 px-md-4">
+          <div className="row justify-content-center">
+            <div className="col-12 col-lg-10">
+              {/* Sage badge mimics a cookbook section label ("Introduction") */}
+              <span className="badge badge-sage rounded-pill mb-4 px-3 py-2 fs-6 fw-normal">
+                Your digital kitchen
+              </span>
 
-          {/* Main headline – Outfit font applied via global h1 rule in custom.css */}
-          <h1 className="display-3 fw-bold mb-3">
-            Eat smarter with{' '}
-            {/* Gradient text highlight using the brand orange */}
-            <span style={{ color: 'var(--pr-primary)' }}>PiattoRicco</span>
-          </h1>
+              {/* Serif headline from global h1 rule in custom.css */}
+              <h1 className="display-4 fw-bold mb-3">
+                Your week, planned like a{' '}
+                <span className="text-primary">menu</span>
+              </h1>
 
-          {/* Subtitle */}
-          <p className="lead text-secondary mb-5 mx-auto" style={{ maxWidth: '600px' }}>
-            Let AI plan your meals, track your pantry and keep your weekly diet on
-            track — all in one beautifully simple app.
-          </p>
+              <p className="lead text-muted mb-5">
+                Plan meals around what is in your pantry, map your week at a glance,
+                and let AI suggest dishes that fit your goals.
+              </p>
 
-          {/* CTA buttons – Bootstrap btn utilities */}
-          <div className="d-flex flex-wrap gap-3 justify-content-center">
-            {/* Show "Get Started" only when the user is NOT logged in */}
-            {!isAuthenticated && (
-              <Link
-                to="/register"
-                className="btn btn-primary btn-lg px-4"
-                id="hero-get-started-btn"
-              >
-                Get Started Free
-              </Link>
-            )}
-            <Link
-              to="/dashboard"
-              className="btn btn-outline-light btn-lg px-4"
-              id="hero-dashboard-btn"
-            >
-              Go to Dashboard
-            </Link>
+              <div className="d-flex flex-wrap gap-3 justify-content-center">
+                {!isAuthenticated && (
+                  <Link
+                    to="/register"
+                    className="btn btn-primary btn-lg px-4"
+                    id="hero-get-started-btn"
+                  >
+                    Start your kitchen journal
+                  </Link>
+                )}
+                <Link
+                  to="/dashboard"
+                  className="btn btn-outline-secondary btn-lg px-4"
+                  id="hero-dashboard-btn"
+                >
+                  Go to Dashboard
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── FEATURES GRID ────────────────────────────────────────────────────── */}
+      {/* ── 2. EDITORIAL BAND — short mission strip ──────────────────────────── */}
+      <section className="home-editorial-band py-5">
+        <div className="container px-3 px-md-4">
+          <div className="row justify-content-center text-center">
+            <div className="col-12 col-lg-10">
+              <h2 className="fw-bold mb-3">Cook smarter, waste less</h2>
+              <p className="text-muted mb-0">
+                PiattoRicco connects your pantry, weekly planner, and AI suggestions
+                so every meal feels intentional — like following a well-edited recipe book.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 3. FEATURES — three recipe-style cards ───────────────────────────── */}
       {/*
-        Bootstrap responsive grid:
-        - col-12  → 1 column on xs/sm (mobile)
-        - col-md-6 → 2 columns on md (tablet)
-        - col-lg-4 → 3 columns on lg+ (desktop)
-        Each card uses the .hover-card class from custom.css for the lift-on-hover
-        micro-animation (CSS transform + transition).
+        Responsive grid: 1 col mobile → 2 cols tablet → 3 cols desktop.
+        .hover-card adds a gentle lift on hover (transform in custom.css).
       */}
       <section className="py-5" id="features">
-        <div className="container">
-          {/* Section heading */}
+        <div className="container px-3 px-md-4">
           <div className="text-center mb-5">
-            <h2 className="fw-bold">Everything you need</h2>
-            <p className="text-secondary">
-              Six powerful features, one clean interface.
-            </p>
+            <h2 className="fw-bold">Three tools, one kitchen</h2>
+            <p className="text-muted">Everything you need to plan, cook, and shop with less stress.</p>
           </div>
 
           <div className="row g-4">
             {features.map((feature) => (
-              /*
-                key prop required by React when rendering a list so the
-                virtual DOM can efficiently track which items changed.
-              */
               <div key={feature.title} className="col-12 col-md-6 col-lg-4">
-                {/*
-                  .hover-card applies a smooth translateY(-4px) on hover (see custom.css §3).
-                  h-100 makes all cards in a row equal height, a classic Bootstrap trick.
-                */}
-                <div className="card h-100 hover-card p-4">
-                  {/* Large emoji icon */}
+                <div className="card h-100 hover-card border-0 shadow-sm p-4">
                   <div className="fs-1 mb-3">{feature.icon}</div>
-
                   <h5 className="fw-bold mb-2">{feature.title}</h5>
-
-                  {/* text-secondary uses Bootstrap's muted text colour */}
-                  <p className="text-secondary flex-grow-1">{feature.description}</p>
-
-                  {/* btn-sm keeps the card links compact */}
+                  <p className="text-muted flex-grow-1">{feature.description}</p>
                   <Link
                     to={feature.link}
                     className="btn btn-outline-primary btn-sm mt-3 align-self-start"
@@ -189,29 +142,18 @@ function Home() {
         </div>
       </section>
 
-      {/*
-        ── BOTTOM CTA BANNER ──────────────────────────────────────────────────
-        Rendered only when the user is NOT authenticated.
-        React's conditional rendering with && operator: if the left side is
-        false the right side (JSX) is simply not rendered at all.
-      */}
+      {/* ── 4. BOTTOM CTA — guests only ────────────────────────────────────── */}
       {!isAuthenticated && (
-        <section className="py-5 text-center">
-          <div className="container">
-            <div
-              className="rounded-4 p-5"
-              style={{
-                background:
-                  'linear-gradient(135deg, rgba(235,94,40,0.12) 0%, rgba(235,94,40,0.04) 100%)',
-                border: '1px solid rgba(235,94,40,0.2)',
-              }}
-            >
-              <h3 className="fw-bold mb-3">Ready to eat smarter?</h3>
-              <p className="text-secondary mb-4">
+        <section className="py-5">
+          <div className="container px-3 px-md-4">
+            <div className="home-cta-box rounded-4 p-5 text-center">
+              <div className="fs-1 mb-3">🍽️</div>
+              <h3 className="fw-bold mb-3">Reserve your seat at the table</h3>
+              <p className="text-muted mb-4">
                 Create a free account in seconds and let the AI handle your meal planning.
               </p>
               <Link to="/register" className="btn btn-primary btn-lg px-5" id="bottom-cta-btn">
-                Create Account
+                Create a free account
               </Link>
             </div>
           </div>

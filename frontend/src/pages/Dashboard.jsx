@@ -156,8 +156,8 @@ export default function Dashboard() {
   };
 
 
-  if (isLoading) return <div className="container mt-5 text-center"><h5>Loading Executive Dashboard...</h5></div>;
-  if (!goals) return <div className="container mt-5 text-center"><h5>Please set your Nutritional Profile first.</h5></div>;
+  if (isLoading) return <div className="mt-5 text-center"><h5>Loading Executive Dashboard...</h5></div>;
+  if (!goals) return <div className="mt-5 text-center"><h5>Please set your Nutritional Profile first.</h5></div>;
 
   const eaten = todayMeals.filter(m => m.isLocked).reduce((acc, m) => ({
     cals: acc.cals + (m.recipe.caloriesPerServing || 0),
@@ -167,7 +167,7 @@ export default function Dashboard() {
   }), { cals: 0, pro: 0, carb: 0, fat: 0 });
 
   return (
-    <div className="container mt-4 mb-5">
+    <div className="mt-4 mb-5">
       <div className="d-flex flex-column flex-md-row justify-content-between align-md-items-end mb-4 gap-3">
         <div>
           <h2 className="fw-bold mb-0">Daily Action Plan</h2>
@@ -262,7 +262,7 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="card-body d-flex flex-column">
-                      <div className="badge bg-dark mb-2 align-self-start small">{entry.mealType}</div>
+                      <div className="badge bg-dark text-white mb-2 align-self-start small">{entry.mealType}</div>
                       <h6 className={`card-title fw-bold mb-0 ${entry.isLocked ? 'text-decoration-line-through text-muted' : ''}`}>
                         {entry.recipe.title}
                       </h6>

@@ -320,7 +320,7 @@ export default function Profile() {
 
   return (
     <div className="row justify-content-center mt-4">
-      <div className="col-md-8 col-lg-6">
+      <div className="col-12 col-lg-10">
         <h2 className="mb-4">👤 Nutritional Profile</h2>
         
         <div className="card shadow-sm border-0">

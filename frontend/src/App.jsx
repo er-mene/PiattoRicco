@@ -19,8 +19,7 @@ function App() {
   const [isNavOpen, setIsNavOpen] = useState(false);
   // Verifica reattiva dello stato di autenticazione leggendo il JWT dal LocalStorage
   const isAuthenticated = !!localStorage.getItem('token');
-  // On the home page the hero section starts immediately below the navbar,
-  // so we remove the bottom margin (mb-4) to avoid a gap.
+  // On the home page the hero is full-bleed and sits flush under the navbar (no extra gap).
   const isHome = location.pathname === '/';
 
   const handleLogout = () => {
@@ -31,8 +30,12 @@ function App() {
 
   return (
     <div>
-      <nav className={`navbar navbar-expand-lg navbar-dark bg-dark shadow-sm sticky-top${isHome ? '' : ' mb-4'}`}>
-        <div className="container">
+      {/*
+        navbar-light + bg-body: matches the warm cream kitchen theme (see custom.css).
+        sticky-top keeps navigation visible while scrolling long pages like Planner.
+      */}
+      <nav className={`navbar navbar-expand-lg navbar-light bg-body border-bottom shadow-sm sticky-top${isHome ? '' : ' mb-4'}`}>
+        <div className="container px-3 px-md-4">
           <Link className="navbar-brand fw-bold" to="/"><img src="/assets/logo.png" alt="🍽️ PiattoRicco" height="80" className="d-inline-block align-top" /></Link>
 
           <button
@@ -61,12 +64,12 @@ function App() {
 
               {/* Rendering condizionale della barra di navigazione basato sullo stato di login */}
               {isAuthenticated ? (
-                <button onClick={handleLogout} className="btn btn-outline-light ms-3 btn-sm">
+                <button onClick={handleLogout} className="btn btn-outline-secondary ms-3 btn-sm">
                   Log Out
                 </button>
               ) : (
                 <>
-                  <Link className="btn btn-outline-light ms-lg-3 my-2 my-lg-0 btn-sm" to="/login">Log In</Link>
+                  <Link className="btn btn-outline-secondary ms-lg-3 my-2 my-lg-0 btn-sm" to="/login">Log In</Link>
                   <Link className="btn btn-primary ms-lg-2 mb-2 mb-lg-0 btn-sm" to="/register">Sign Up</Link>
                 </>
               )}
@@ -75,9 +78,12 @@ function App() {
         </div>
       </nav>
 
-      <main className="container">
+      {/*
+        Home owns its own .container per section for a full-bleed cookbook layout.
+        All other routes use Bootstrap's standard .container on <main>.
+      */}
+      <main className={isHome ? '' : 'container px-3 px-md-4'}>
         <Routes>
-          {/* Home landing page – shown at the root path */}
           <Route path="/" element={<Home />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/pantry" element={<Pantry />} />

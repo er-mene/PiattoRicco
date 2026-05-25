@@ -194,7 +194,7 @@ export default function Pantry() {
 
   return (
     <div className="row justify-content-center mt-4">
-      <div className="col-md-10 col-lg-8">
+      <div className="col-12">
         <h2 className="mb-4">🧺 My Pantry</h2>
         
         <div className="card shadow-sm border-0 mb-4">

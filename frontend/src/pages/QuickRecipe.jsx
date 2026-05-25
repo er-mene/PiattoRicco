@@ -101,7 +101,7 @@ function QuickRecipe() {
   const isCurrentRecipeFavorite = recipe ? favorites.some(f => f.title === recipe.title) : false;
 
   return (
-    <div className="container mt-4 mb-5">
+    <div className="mt-4 mb-5">
       {/* Header Form */}
       <div className="card shadow-sm border-0 mb-4 p-4 rounded-4 bg-body-tertiary">
         <h2 className="fw-bold mb-4">Quick Recipe Generator</h2>
