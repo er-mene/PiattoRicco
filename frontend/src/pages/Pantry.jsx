@@ -121,6 +121,13 @@ export default function Pantry() {
       return;
     }
 
+    // Prevenzione Duplicati: blocca l'aggiunta se l'ingrediente è già nella lista locale
+    const isDuplicate = items.some(item => item.ingredient.name.toLowerCase() === selectedIngredient.name.toLowerCase());
+    if (isDuplicate) {
+      setError('This ingredient is already in your pantry.');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     setShowSuggestions(false); // Force hide dropdown during fetch
