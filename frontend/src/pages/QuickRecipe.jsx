@@ -130,7 +130,7 @@ function QuickRecipe() {
             <div 
               className="d-flex align-items-center gap-3 px-3 py-2 rounded-pill shadow-sm" 
               style={{ 
-                background: isStrictMode ? 'linear-gradient(45deg, #198754, #20c997)' : 'rgba(255,255,255,0.05)',
+                background: isStrictMode ? 'linear-gradient(45deg, #198754, #20c997)' : 'rgba(0,0,0,0.05)',
                 border: isStrictMode ? 'none' : '1px solid var(--pr-border-color)',
                 transition: 'all 0.3s ease',
                 height: '48px',
@@ -138,7 +138,7 @@ function QuickRecipe() {
               }}
             >
               <div className="form-check form-switch mb-0 fs-6 fs-md-5 w-100 d-flex justify-content-between align-items-center">
-                <label className={`form-check-label text-truncate me-2 ${isStrictMode ? 'text-white fw-bold' : 'text-light fw-medium'}`} htmlFor="strictModeQuick" style={{ maxWidth: 'calc(100% - 45px)' }}>
+                <label className={`form-check-label text-truncate me-2 ${isStrictMode ? 'text-white fw-bold' : 'text-body fw-medium'}`} htmlFor="strictModeQuick" style={{ maxWidth: 'calc(100% - 45px)' }}>
                   Strict Pantry Mode
                 </label>
                 <input 
@@ -240,7 +240,7 @@ function QuickRecipe() {
                         const isMissing = recipe.nutritionalInfo.missedIngredients.includes(ing.name);
                         return (
                           <li key={i} className="list-group-item px-0 py-1 d-flex justify-content-between text-capitalize border-0 bg-transparent">
-                            <span className={isMissing ? "text-danger fw-medium" : "text-light"}>
+                            <span className={isMissing ? "text-danger fw-medium" : "text-body"}>
                               {isMissing && <span className="me-1">⚠️</span>}
                               {ing.name}
                             </span>
@@ -255,7 +255,7 @@ function QuickRecipe() {
                   <div className="col-sm-7">
                     <h5 className="fw-bold mb-3 border-bottom border-secondary pb-2">Instructions</h5>
                     <div 
-                      className="small text-light" 
+                      className="small text-body" 
                       style={{ lineHeight: '1.6' }}
                       dangerouslySetInnerHTML={{ __html: recipe.instructions }} 
                     />

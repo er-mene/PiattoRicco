@@ -227,7 +227,6 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
 
     const finalRecipe = {
       id: crypto.randomUUID(), // fake id for frontend keys
-      sourceType: 'AI_GENERATED',
       title: recipeData.title,
       imageUrl: mealImages[mealType] || mealImages.LUNCH,
       instructions: recipeData.instructions,
@@ -481,7 +480,6 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
 
           recipesData.push({
             id: recipeId,
-            sourceType: 'AI_GENERATED',
             title: meal.title,
             imageUrl: dynamicImage,
             instructions: meal.instructions,
@@ -550,7 +548,6 @@ router.put('/swap/:entryId', requireAuth, plannerSwapLimiter, async (req, res) =
       return res.status(403).json({ error: 'Forbidden' });
     }
     
-    console.log("Found current entry, Recipe Source:", currentEntry.recipe.sourceType);
 
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
     const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
@@ -638,7 +635,6 @@ Return ONLY the JSON object, no other text.`;
     const updatedEntry = await prisma.$transaction(async (tx) => {
       const newRecipe = await tx.recipe.create({
         data: {
-          sourceType: 'AI_GENERATED',
           title: recipeData.title,
           imageUrl: mealImages[currentEntry.mealType] || mealImages.LUNCH,
           instructions: recipeData.instructions,
