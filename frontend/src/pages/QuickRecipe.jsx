@@ -186,9 +186,6 @@ function QuickRecipe() {
                   <div>
                     <h2 className="card-title fw-bold text-primary mb-2">{recipe.title}</h2>
                     <div>
-                      <span className="badge bg-warning text-dark border border-warning shadow-sm me-2 fs-6">
-                        ✨ AI Generated
-                      </span>
                       <span className="badge bg-dark border shadow-sm fs-6">
                         {mealType}
                       </span>
