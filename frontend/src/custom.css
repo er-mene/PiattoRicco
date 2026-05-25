@@ -81,6 +81,16 @@ h1, h2, h3, h4, h5, h6, .navbar-brand {
   color: #fff !important;
 }
 
+/* Global heading color is charcoal — restore white text on dark bands (History, Planner) */
+.bg-dark h1,
+.bg-dark h2,
+.bg-dark h3,
+.bg-dark h4,
+.bg-dark h5,
+.bg-dark h6 {
+  color: #fff !important;
+}
+
 .navbar-light.bg-body {
   background-color: var(--pr-surface) !important;
   border-bottom: 1px solid var(--pr-border-color) !important;
