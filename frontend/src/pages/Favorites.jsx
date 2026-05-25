@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+// Immagine di fallback se la ricetta non ha un'immagine generata dall'AI
+const MEAL_PLACEHOLDER = '/assets/placeholders/lunch_placeholder.png';
+
+function getRecipeImageUrl(recipe) {
+  const url = recipe?.imageUrl?.trim();
+  if (url) {
+    return url.startsWith('/') ? url : `/${url}`;
+  }
+  const type = recipe?.fallbackMealType?.toLowerCase() || 'lunch';
+  return `/assets/placeholders/${type}_placeholder.png`;
+}
+
 export default function Favorites() {
   const navigate = useNavigate();
   // State containing the array of favorited recipes (loaded from localStorage)
@@ -63,7 +75,7 @@ export default function Favorites() {
                     onClick={() => setSelectedRecipe(recipe)}
                   >
                     <img 
-                      src={recipe.imageUrl} 
+                      src={getRecipeImageUrl(recipe)} 
                       className="card-img-top" 
                       alt={recipe.title} 
                       style={{ height: '180px', objectFit: 'cover' }} 
@@ -118,7 +130,7 @@ export default function Favorites() {
               
               <div className="modal-body p-4">
                 <img 
-                  src={selectedRecipe.imageUrl} 
+                  src={getRecipeImageUrl(selectedRecipe)} 
                   className="img-fluid rounded-4 mb-4 w-100" 
                   style={{ maxHeight: '300px', objectFit: 'cover' }} 
                   alt="" 

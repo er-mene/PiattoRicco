@@ -158,7 +158,7 @@ export default function Dashboard() {
    * Toggles bookmarking/favoriting a recipe.
    * Syncs state to localStorage to share status across different routes.
    */
-  const toggleFavorite = (e, recipe) => {
+  const toggleFavorite = (e, recipe, mealType) => {
     e.stopPropagation(); // Avoid triggering recipe details modal onclick
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) return;
@@ -171,7 +171,7 @@ export default function Dashboard() {
     if (isFav) {
       updatedFavs = currentFavs.filter(f => f.id !== recipe.id);
     } else {
-      updatedFavs = [...currentFavs, recipe];
+      updatedFavs = [...currentFavs, { ...recipe, fallbackMealType: mealType || 'LUNCH' }];
     }
     
     localStorage.setItem(favKey, JSON.stringify(updatedFavs));
@@ -306,7 +306,7 @@ export default function Dashboard() {
                       <button 
                         className="btn btn-sm btn-light rounded-circle shadow-sm p-1 d-flex align-items-center justify-content-center"
                         style={{ width: '32px', height: '32px', zIndex: 10 }}
-                        onClick={(e) => toggleFavorite(e, entry.recipe)}
+                        onClick={(e) => toggleFavorite(e, entry.recipe, entry.mealType)}
                         title="Add to Favorites"
                       >
                         {favorites.some(f => f.id === entry.recipe.id) ? '❤️' : '🤍'}
