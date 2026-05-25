@@ -141,12 +141,7 @@ export default function History() {
                           >
                             ✕
                           </button>
-                          <img 
-                            src={entry.recipe.imageUrl} 
-                            alt={entry.recipe.title} 
-                            className="rounded-3"
-                            style={{ width: '80px', height: '80px', objectFit: 'cover' }}
-                          />
+
                           <div>
                             <span className="badge bg-secondary mb-1">{entry.mealType}</span>
                             <h6 className="fw-bold mb-1 text-truncate" style={{ maxWidth: '150px' }}>
@@ -185,12 +180,7 @@ export default function History() {
               </div>
               
               <div className="modal-body p-4">
-                <img 
-                  src={selectedRecipe.imageUrl} 
-                  className="img-fluid rounded-4 mb-4 w-100" 
-                  style={{ maxHeight: '300px', objectFit: 'cover' }} 
-                  alt="" 
-                />
+
 
                 <div className="row g-4">
                   <div className="col-md-5">
