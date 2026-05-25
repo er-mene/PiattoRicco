@@ -290,7 +290,7 @@ export default function Planner() {
               </ul>
             </div>
 
-            <div className="row g-4 mt-2">
+            <div className="row g-4 mt-2 justify-content-center">
               {Object.keys(mealPlan).sort().map((dateStr) => {
                 
                 // Calcola il totale delle calorie unicamente per le ricette consumate (spuntate)
@@ -315,7 +315,7 @@ export default function Planner() {
                 const isSelectedOnMobile = activeDay === dateStr;
 
                 return (
-                  <div className={`col-md-6 col-xl-4 ${isSelectedOnMobile ? 'd-block' : 'd-none d-md-block'}`} key={dateStr}>
+                  <div className={`col-md-6 col-lg-4 col-xxl-3 ${isSelectedOnMobile ? 'd-block' : 'd-none d-md-block'}`} key={dateStr}>
                     <div className="card shadow-sm h-100 border-0 hover-card">
                     
                     {/* Intestazione della Card Giornaliera */}
