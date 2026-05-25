@@ -1,7 +1,7 @@
 /**
- * Database connection setup using Prisma ORM.
- * Automatically handles both direct PostgreSQL connections (using adapter-pg)
- * and optimized connection pooling via Prisma Accelerate.
+ * Configurazione della connessione al database utilizzando l'ORM Prisma.
+ * Gestisce automaticamente sia le connessioni dirette a PostgreSQL (tramite adapter-pg)
+ * sia il pooling delle connessioni ottimizzato tramite Prisma Accelerate.
  */
 
 import { PrismaPg } from '@prisma/adapter-pg';

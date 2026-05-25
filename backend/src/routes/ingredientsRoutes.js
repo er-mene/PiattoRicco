@@ -7,14 +7,14 @@ import prisma from '../db.js';
 const router = express.Router();
 
 const autocompleteLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 30, // Limit each IP to 30 autocomplete requests per minute to prevent keypress spam
+  windowMs: 1 * 60 * 1000, // Finestra di 1 minuto
+  max: 30, // Limita ogni IP a 30 richieste di autocompletamento al minuto per prevenire lo spam da digitazione
   message: { error: 'Too many autocomplete requests. Please try again later.' }
 });
 
 /**
- * Ingredients Routes.
- * Handles queries related to food ingredients (e.g. autocomplete suggestions).
+ * Rotte Globali per la Ricerca di Ingredienti.
+ * Gestisce query relative agli ingredienti (es. autocompletamento in tempo reale).
  */
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -28,22 +28,22 @@ const model = genAI.getGenerativeModel({
 
 /**
  * GET /autocomplete
- * Provides real-time autocompletion suggestions as the user types an ingredient.
- * Uses database-backed caching, querying Gemini AI only if fewer than 5 matching
- * ingredients are cached with the given prefix.
+ * Fornisce suggerimenti di autocompletamento in tempo reale mentre l'utente digita un ingrediente.
+ * Usa il database come cache locale e interroga l'AI (Gemini) solo se i risultati
+ * corrispondenti memorizzati sono inferiori a 5 per un determinato prefisso.
  */
 router.get('/autocomplete', requireAuth, autocompleteLimiter, async (req, res) => {
   try {
     const { query } = req.query;
     
-    // Prevent unnecessary API calls if query prefix is too short
+    // Previene chiamate API inutili se il prefisso digitato è troppo breve
     if (!query || query.length < 2) {
       return res.json([]);
     }
 
     const normalizedQuery = query.trim().toLowerCase();
 
-    // 1. Check if we already have at least 5 ingredients in the local DB cache
+    // 1. Controlla se possediamo già almeno 5 ingredienti corrispondenti memorizzati nella cache locale (database)
     let dbIngredients = await prisma.ingredient.findMany({
       where: {
         name: {
@@ -54,7 +54,7 @@ router.get('/autocomplete', requireAuth, autocompleteLimiter, async (req, res) =
       take: 5
     });
 
-    // 2. If fewer than 5 matching cached items, fetch suggestions from Gemini AI
+    // 2. Se abbiamo meno di 5 corrispondenze nella cache, recupera nuovi suggerimenti interrogando l'AI (Gemini)
     if (dbIngredients.length < 5) {
       const prompt = `Suggest exactly 5 common food ingredients whose name starts with or closely matches: "${query}".
 Return ONLY a JSON array of objects with "name" and "id" fields. The "id" should be a unique integer.
@@ -64,11 +64,11 @@ Return ONLY the JSON array, no other text.`;
       const result = await model.generateContent(prompt);
       const text = result.response.text().trim();
       
-      // Parse the JSON response from AI, stripping potential markdown blocks if present
+      // Analizza la risposta JSON dell'AI, rimuovendo eventuali blocchi di markdown o testo aggiuntivo
       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const suggestions = JSON.parse(cleanJson);
 
-      // 3. Persist the new suggestions to the DB using upsert to prevent duplication
+      // 3. Salva i nuovi suggerimenti nel database utilizzando "upsert" per prevenire duplicati
       for (const sugg of suggestions) {
         const name = sugg.name.trim().toLowerCase();
         if (!name) continue;
@@ -79,7 +79,7 @@ Return ONLY the JSON array, no other text.`;
         });
       }
 
-      // 4. Query the DB again to retrieve the newly populated cached ingredients
+      // 4. Interroga di nuovo il database per estrarre la cache aggiornata con i nuovi ingredienti appena aggiunti
       dbIngredients = await prisma.ingredient.findMany({
         where: {
           name: {
@@ -90,8 +90,8 @@ Return ONLY the JSON array, no other text.`;
         take: 5
       });
 
-      // Fallback: If prefix matching returns fewer than 5 items (e.g. Gemini returns items that
-      // do not strictly match the startsWith prefix), include all suggestions directly from DB.
+      // Meccanismo di Fallback: Se la ricerca rigida per prefisso (startsWith) restituisce meno di 5 elementi
+      // (es. l'AI suggerisce varianti che contengono la parola ma non iniziano con essa), include tutti i suggerimenti estratti direttamente.
       if (dbIngredients.length < 5) {
         const namesToFetch = suggestions.map(s => s.name.trim().toLowerCase());
         const fetched = await prisma.ingredient.findMany({
@@ -100,7 +100,7 @@ Return ONLY the JSON array, no other text.`;
           }
         });
         
-        // Merge and deduplicate by ID
+        // Unisce gli array e rimuove i duplicati basandosi sull'ID univoco
         const mergedMap = new Map();
         dbIngredients.forEach(item => mergedMap.set(item.id, item));
         fetched.forEach(item => mergedMap.set(item.id, item));
@@ -108,7 +108,7 @@ Return ONLY the JSON array, no other text.`;
       }
     }
 
-    // 5. Map DB results to the structure expected by the frontend
+    // 5. Mappa i risultati del database nella struttura snella (id, name) prevista dal frontend
     const responseSuggestions = dbIngredients.map(item => ({
       id: item.id,
       name: item.name

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 
-// Application View Imports
+// Importazione delle viste (pagine) dell'applicazione
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
@@ -17,9 +17,9 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isNavOpen, setIsNavOpen] = useState(false);
-  // Check authentication status by checking the JWT in LocalStorage
+  // Verifica dello stato di autenticazione controllando il JWT nel LocalStorage
   const isAuthenticated = !!localStorage.getItem('token');
-  // On the home page the hero is full-bleed and sits flush under the navbar (no extra gap).
+  // Sulla pagina Home, la Hero section occupa l'intero spazio e si attacca alla navbar (nessun margine inferiore).
   const isHome = location.pathname === '/';
 
   const handleLogout = () => {
@@ -30,7 +30,7 @@ function App() {
 
   return (
     <div>
-      {/* Sticky navbar to keep navigation accessible while scrolling. */}
+      {/* Navbar fissata in alto ("sticky") per mantenere la navigazione sempre accessibile durante lo scroll. */}
       <nav className={`navbar navbar-expand-lg navbar-light bg-body border-bottom shadow-sm sticky-top${isHome ? '' : ' mb-4'}`}>
         <div className="container px-3 px-md-4">
           <Link className="navbar-brand fw-bold" to="/"><img src="/assets/logo.png" alt="🍽️ PiattoRicco" height="80" className="d-inline-block align-top" /></Link>

@@ -4,28 +4,28 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function Pantry() {
   const navigate = useNavigate();
-  // Local array holding all pantry items saved in the DB
+  // Array di stato locale che memorizza l'intera lista degli ingredienti in dispensa
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // State variables for Pantry and autocomplete UI management
-  const [suggestions, setSuggestions] = useState([]); // AI autocomplete results list
-  const [showSuggestions, setShowSuggestions] = useState(false); // Dropdown visibility
-  const [isSearching, setIsSearching] = useState(false); // Autocomplete loading indicator
-  const [selectedIngredient, setSelectedIngredient] = useState(null); // Selected validated ingredient object
+  // Stati per la gestione della logica di autocompletamento (AI) della Dispensa
+  const [suggestions, setSuggestions] = useState([]); // Elenco dei risultati di autocompletamento (AI)
+  const [showSuggestions, setShowSuggestions] = useState(false); // Visibilità del menu a tendina
+  const [isSearching, setIsSearching] = useState(false); // Indicatore di caricamento della ricerca
+  const [selectedIngredient, setSelectedIngredient] = useState(null); // Oggetto ingrediente validato e selezionato
 
-  // Add item form state definition
+  // Stato del form per l'aggiunta di un nuovo ingrediente
   const [formData, setFormData] = useState({
     name: '',
     quantity: '',
     unit: ''
   });
-  // Inline editing state for editing row quantity and unit values
+  // Stati per la modifica rapida in linea (inline editing) per aggiornare quantità e unità di misura
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ quantity: '', unit: '' });
   
-  // Fetch current pantry items from DB on mount
+  // Recupera il contenuto della dispensa dal database al caricamento del componente
   useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) return navigate('/login');
@@ -46,7 +46,7 @@ export default function Pantry() {
   useEffect(() => {
     let active = true;
 
-    // Cancel search if query input is too short
+    // Disabilita la ricerca se l'input dell'utente è troppo corto (meno di 2 caratteri)
     if (formData.name.trim().length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -54,7 +54,7 @@ export default function Pantry() {
       return;
     }
 
-    // Initialize debounced fetch timer (300ms)
+    // Inizializza il timer di "debounce" (300ms) per limitare le chiamate API durante la digitazione veloce
     const delayDebounceFn = setTimeout(async () => {
       setIsSearching(true);
       try {
@@ -64,7 +64,7 @@ export default function Pantry() {
           setSuggestions(data);
           setShowSuggestions(true);
 
-          // Search for an exact case-insensitive match within fetched suggestions
+          // Cerca una corrispondenza esatta (case-insensitive) tra i suggerimenti recuperati per validare l'input
           const match = data.find(s => s.name.toLowerCase() === formData.name.trim().toLowerCase());
           if (match) {
             setSelectedIngredient(match);
@@ -81,7 +81,7 @@ export default function Pantry() {
       }
     }, 300);
 
-    // Cleanup: invalidate running requests and clear timer
+    // Funzione di cleanup: invalida le richieste in corso e resetta il timer al variare dell'input
     return () => {
       active = false;
       clearTimeout(delayDebounceFn);
@@ -92,7 +92,7 @@ export default function Pantry() {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
     if (name === 'name') {
-      // Check for exact case-insensitive match on input change
+      // Verifica la presenza di una corrispondenza esatta a ogni singolo cambiamento dell'input
       const match = suggestions.find(s => s.name.toLowerCase() === value.trim().toLowerCase());
       if (match) {
         setSelectedIngredient(match);
@@ -102,11 +102,11 @@ export default function Pantry() {
     }
   };
 
-  // Handler for selecting an autocomplete suggestion from list
+  // Gestore per la selezione di un suggerimento dal menu a tendina
   const handleSelectSuggestion = (suggestion) => {
     setFormData({ ...formData, name: suggestion.name });
     setSelectedIngredient(suggestion);
-    setShowSuggestions(false); // Hide dropdown on selection
+    setShowSuggestions(false); // Nasconde il menu a tendina dopo aver selezionato un elemento
   };
 
   const handleAddItem = async (e) => {
@@ -114,7 +114,7 @@ export default function Pantry() {
     const ingredientName = formData.name.trim();
     if (!ingredientName) return;
 
-    // Enforce selection of autocomplete suggestions only
+    // Forza l'utente a selezionare esclusivamente ingredienti suggeriti e validati dall'AI
     const isNameValid = selectedIngredient && selectedIngredient.name.toLowerCase() === ingredientName.toLowerCase();
     if (!isNameValid) {
       setError('Please select a valid ingredient from the suggestions list.');
@@ -130,7 +130,7 @@ export default function Pantry() {
 
     setIsLoading(true);
     setError('');
-    setShowSuggestions(false); // Force hide dropdown during fetch
+    setShowSuggestions(false); // Forza la chiusura della tendina durante il salvataggio
 
     try {
       const user = JSON.parse(localStorage.getItem('user'));
@@ -139,8 +139,8 @@ export default function Pantry() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
-          name: selectedIngredient.name, // Use AI validated name
-          // Nullify empty strings to match database validation
+          name: selectedIngredient.name, // Usa il nome canonico validato dall'AI
+          // Annulla stringhe vuote in null per rispettare la validazione del database
           quantity: formData.quantity === '' ? null : formData.quantity,
           unit: formData.unit === '' ? null : formData.unit
         })
@@ -148,11 +148,11 @@ export default function Pantry() {
 
       if (!response.ok) throw new Error('Failed to add ingredient');
 
-      // Unshift newly added pantry item object into state
+      // Inserisce il nuovo oggetto ingrediente restituito dal server in cima allo stato locale
       const addedItem = await response.json();
       setItems([addedItem, ...items]);
       
-      // Clear name field to allow fast consecutive entries
+      // Svuota unicamente il campo del nome per permettere un inserimento rapido in sequenza
       setFormData({ ...formData, name: '' }); 
       setSelectedIngredient(null);
     } catch (err) {
@@ -189,7 +189,7 @@ export default function Pantry() {
       if (!response.ok) throw new Error('Failed to update');
       const updatedItem = await response.json();
       
-      // Update modified item locally in list to avoid full page re-fetch
+      // Aggiorna localmente l'elemento modificato per non dover ricaricare l'intera pagina
       setItems(items.map(item => item.id === itemId ? updatedItem : item));
       setEditingId(null);
     } catch (err) {
@@ -213,7 +213,7 @@ export default function Pantry() {
             {error && <div className="alert alert-danger">{error}</div>}
 
             <form onSubmit={handleAddItem} className="row g-2 mb-4 align-items-center">
-              {/* Relative container wrapper for dropdown positioning */}
+              {/* Contenitore relativo per posizionare correttamente il menu a tendina (dropdown) */}
               <div className="col-12 col-md-5 position-relative">
                 <input 
                   type="text" 
@@ -222,12 +222,12 @@ export default function Pantry() {
                   placeholder="Ingredient (e.g. Chicken)" 
                   value={formData.name}
                   onChange={handleChange}
-                  autoComplete="off" // Disable browser default autocompletion
+                  autoComplete="off" // Disabilita l'autocompletamento nativo del browser per usare quello custom AI
                   disabled={isLoading}
                   required
                 />
                 
-                {/* Loading spinner or validation indicator */}
+                {/* Indicatore di caricamento (spinner) o segno di spunta per validazione completata */}
                 {isSearching ? (
                   <div className="position-absolute top-50 end-0 translate-middle-y pe-3" style={{ zIndex: 10 }}>
                     <span className="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
@@ -240,14 +240,14 @@ export default function Pantry() {
                   )
                 )}
 
-                {/* Warning message if matching input isn't fully selected */}
+                {/* Messaggio di avviso visibile se l'utente digita ma non seleziona nulla dalla lista */}
                 {!isNameValid && formData.name.trim().length >= 2 && (
                   <div className="text-warning small position-absolute start-0 ps-1" style={{ fontSize: '0.82rem', top: '100%', zIndex: 10 }}>
                     ⚠️ Choose a suggestion from the list
                   </div>
                 )}
 
-                {/* AI autocomplete suggestions dropdown list overlay */}
+                {/* Lista dei suggerimenti AI (menu a tendina sovrapposto) */}
                 {showSuggestions && suggestions.length > 0 && (
                   <ul className="list-group position-absolute w-100 shadow mt-1 bg-dark border" style={{ zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
                     {suggestions.map((suggestion) => (
@@ -264,7 +264,7 @@ export default function Pantry() {
                 )}
               </div>
               
-              {/* Quantity input field */}
+              {/* Campo input per la quantità */}
               <div className="col-12 col-sm-6 col-md-3">
                 <input 
                   type="number" 
@@ -276,11 +276,11 @@ export default function Pantry() {
                   value={formData.quantity}
                   onChange={handleChange}
                   disabled={isLoading}
-                  /* Field 'required' is removed to allow quantity-free pantry entries */
+                  /* Il vincolo 'required' è rimosso per consentire inserimenti senza una quantità specificata */
                 />
               </div>
 
-              {/* Measurement unit dropdown selector */}
+              {/* Menu a tendina per l'unità di misura */}
               <div className="col-12 col-sm-6 col-md-2">
                 <select 
                   className={`form-select ${formData.unit === '' ? 'text-muted' : ''}`} 
@@ -289,7 +289,7 @@ export default function Pantry() {
                   onChange={handleChange}
                   disabled={isLoading}
                 >
-                  <option value="">Unit</option> {/* Null unit option */}
+                  <option value="">Unit</option> {/* Opzione nulla di default */}
                   <option value="pieces">pcs</option>
                   <option value="g">g</option>
                   <option value="kg">kg</option>
@@ -333,7 +333,7 @@ export default function Pantry() {
                           {item.ingredient.name}
                         </td>
                         
-                        {/* Display and inline modification of quantity and unit fields */}
+                        {/* Visualizzazione e Modifica in linea dei campi Quantità e Unità di Misura */}
                         <td>
                           {editingId === item.id ? (
                             <div className="d-flex gap-2">
@@ -354,7 +354,7 @@ export default function Pantry() {
                           )}
                         </td>
                         
-                        {/* Action buttons (Edit, Save, Remove) */}
+                        {/* Bottoni per le Azioni (Modifica, Salva, Elimina) */}
                         <td className="text-end">
                           {editingId === item.id ? (
                             <button type="button" className="btn btn-sm btn-success me-2" onClick={() => handleSaveEdit(item.id)}>Save</button>

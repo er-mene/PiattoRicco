@@ -1,7 +1,7 @@
 /**
- * Meal Planning Utilities (Caloric Tetris).
- * Contains the algorithmic logic for partitioning the user's daily calorie targets
- * into proportional meal slots (Breakfast, Lunch, Dinner, Snack).
+ * Utility per la Pianificazione dei Pasti (Caloric Tetris).
+ * Contiene la logica algoritmica per suddividere gli obiettivi calorici giornalieri dell'utente
+ * in slot di pasti proporzionali (Colazione, Pranzo, Cena, Spuntini).
  */
 
 const SNACK_THRESHOLD = 2000;
@@ -14,9 +14,9 @@ const MEAL_BASE_SHARES = {
 const MAIN_MEAL_TYPES = ['BREAKFAST', 'LUNCH', 'DINNER'];
 
 /**
- * Computes and returns the list of daily meal slots, assigning macro percentages and quantitative
- * target goals to each slot based on the user's overall daily goal.
- * Snacks are automatically distributed if the calorie target exceeds the snack threshold.
+ * Calcola e restituisce la lista degli slot dei pasti giornalieri, assegnando percentuali di macronutrienti
+ * e obiettivi quantitativi a ciascuno slot in base all'obiettivo giornaliero complessivo dell'utente.
+ * Gli spuntini (Snack) vengono distribuiti automaticamente se l'obiettivo calorico supera una certa soglia.
  */
 export function buildMealSlots(nutritionalGoal) {
   const snackCount =

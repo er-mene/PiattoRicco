@@ -5,14 +5,14 @@ import { requireAuth } from '../middleware/auth.js';
 const router = express.Router();
 
 /**
- * Pantry Routes.
- * Exposes API endpoints for managing the user's personal pantry stock (CRUD operations).
+ * Rotte della Dispensa (Pantry).
+ * Espone gli endpoint API per gestire l'inventario personale degli ingredienti dell'utente (operazioni CRUD).
  */
 
 /**
  * GET /:userId
- * Retrieves all items in the user's pantry.
- * Results are ordered chronologically from most recent.
+ * Recupera tutti gli elementi presenti nella dispensa dell'utente.
+ * I risultati sono ordinati cronologicamente, dal più recente al più vecchio.
  */
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
@@ -21,7 +21,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
     
     const items = await prisma.pantryItem.findMany({
       where: { userId: userId },
-      include: { ingredient: true }, // Ensure associated ingredient details are loaded
+      include: { ingredient: true }, // Assicura che i dettagli dell'ingrediente associato vengano caricati
       orderBy: { createdAt: 'desc' }
     });
     res.status(200).json(items);
@@ -33,8 +33,8 @@ router.get('/:userId', requireAuth, async (req, res) => {
 
 /**
  * POST /
- * Adds a new ingredient to the user's pantry.
- * Creates the global ingredient record dynamically if it does not exist.
+ * Aggiunge un nuovo ingrediente alla dispensa dell'utente.
+ * Crea il record globale dell'ingrediente in modo dinamico se non esiste già.
  */
 router.post('/', requireAuth, async (req, res) => {
   try {
@@ -60,7 +60,7 @@ router.post('/', requireAuth, async (req, res) => {
       create: { name: ingredientName } 
     });
 
-    // Create pantry item, linking the user and the ingredient via Prisma relationships
+    // Crea l'elemento nella dispensa, collegando l'utente e l'ingrediente tramite relazioni Prisma
     const newItem = await prisma.pantryItem.create({
       data: { 
         user: { connect: { id: userId } },
@@ -81,15 +81,15 @@ router.post('/', requireAuth, async (req, res) => {
 });
 /**
  * PUT /:id
- * Updates quantity and/or unit of measurement for an existing pantry item.
- * Allows clearing values by setting them explicitly to null.
+ * Aggiorna la quantità e/o l'unità di misura per un elemento esistente in dispensa.
+ * Permette di cancellare i valori impostandoli esplicitamente a null.
  */
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { quantity, unit } = req.body;
     
-    // Security Check (IDOR prevention): verify the item exists and belongs to the authenticated user
+    // Controllo di Sicurezza (prevenzione IDOR): verifica che l'elemento esista e appartenga all'utente autenticato
     const item = await prisma.pantryItem.findUnique({ where: { id } });
     if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
     
@@ -103,7 +103,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     const updatedItem = await prisma.pantryItem.update({
       where: { id: id },
       data: {
-        // Enforce null validation to store empty inputs as NULL in the database
+        // Applica validazione NULL per salvare gli input vuoti come NULL nel database
         quantity: (quantity === null || quantity === '' || quantity === undefined) ? null : parseFloat(quantity),
         unit: unit || null
       },
@@ -117,13 +117,13 @@ router.put('/:id', requireAuth, async (req, res) => {
 });
 /**
  * DELETE /:id
- * Permanently removes an ingredient from the user's pantry.
+ * Rimuove definitivamente un ingrediente dalla dispensa dell'utente.
  */
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Security Check (IDOR prevention)
+    // Controllo di Sicurezza (prevenzione IDOR)
     const item = await prisma.pantryItem.findUnique({ where: { id } });
     if (!item || item.userId !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
     

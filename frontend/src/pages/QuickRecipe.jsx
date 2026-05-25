@@ -10,7 +10,7 @@ function QuickRecipe() {
   const [error, setError] = useState(null);
   const [recipe, setRecipe] = useState(null);
   
-  // Manage favorites with localStorage
+  // Gestione dello stato dei preferiti sincronizzato con il localStorage
   const [favorites, setFavorites] = useState([]);
   const [userId, setUserId] = useState(null);
 
@@ -25,7 +25,7 @@ function QuickRecipe() {
     const storedFavs = JSON.parse(localStorage.getItem(`favorites_${user.id}`)) || [];
     setFavorites(storedFavs);
 
-    // Fetch previously generated standalone recipe if cached
+    // Recupera la ricetta singola precedentemente generata se presente in cache locale
     const savedQuickRecipe = localStorage.getItem(`quick_recipe_${user.id}`);
     if (savedQuickRecipe) {
       try {
@@ -61,7 +61,7 @@ function QuickRecipe() {
       const data = await response.json();
       setRecipe(data.recipe);
       
-      // Cache recipe to localStorage to preserve state across route changes
+      // Mette in cache la ricetta nel localStorage per preservare lo stato in caso di cambio pagina
       localStorage.setItem(`quick_recipe_${userId}`, JSON.stringify({
         recipe: data.recipe,
         mealType,
@@ -77,14 +77,14 @@ function QuickRecipe() {
   const toggleFavorite = () => {
     if (!recipe || !userId) return;
     
-    // Determine if the recipe is already favorited using recipe title as unique key
+    // Determina se la ricetta è già tra i preferiti usando il titolo come chiave univoca
     const isFav = favorites.some(f => f.title === recipe.title);
     
     let newFavorites;
     if (isFav) {
       newFavorites = favorites.filter(f => f.title !== recipe.title);
     } else {
-      // Format properties to align with standard favorites page schema
+      // Formatta le proprietà per allinearle con lo schema standard richiesto dalla pagina dei preferiti
       const favRecipe = {
         ...recipe,
         recipeId: recipe.id,
@@ -101,14 +101,14 @@ function QuickRecipe() {
 
   return (
     <div className="mt-4 mb-5">
-      {/* Header Form */}
+      {/* Modulo Superiore: Form di Selezione */}
       <div className="card shadow-sm border-0 mb-4 p-4 rounded-4 bg-body-tertiary">
         <h2 className="fw-bold mb-4">Quick Recipe Generator</h2>
         
         {error && <div className="alert alert-danger shadow-sm">{error}</div>}
 
         <div className="row g-4 align-items-center">
-          {/* Meal Type Selection */}
+          {/* Selezione del Tipo di Pasto */}
           <div className="col-md-5">
             <label className="form-label fw-bold">Select Meal Type</label>
             <select 
@@ -124,7 +124,7 @@ function QuickRecipe() {
             </select>
           </div>
 
-          {/* Strict Mode Toggle */}
+          {/* Interruttore Modalità Dispensa Rigida (Strict Mode) */}
           <div className="col-md-4">
             <div 
               className="d-flex align-items-center gap-3 px-3 py-2 rounded-pill shadow-sm" 
@@ -133,7 +133,7 @@ function QuickRecipe() {
                 border: isStrictMode ? 'none' : '1px solid var(--pr-border-color)',
                 transition: 'all 0.3s ease',
                 height: '48px',
-                marginTop: '32px' // Align with dropdown select input
+                marginTop: '32px' // Allineamento verticale con l'input select adiacente
               }}
             >
               <div className="form-check form-switch mb-0 fs-6 fs-md-5 w-100 d-flex justify-content-between align-items-center">
@@ -154,7 +154,7 @@ function QuickRecipe() {
             </div>
           </div>
 
-          {/* Generate Button */}
+          {/* Pulsante Genera */}
           <div className="col-md-3 mt-md-auto mt-4">
             <button 
               className="btn btn-primary btn-lg w-100 fw-bold shadow-sm rounded-pill" 
@@ -173,14 +173,14 @@ function QuickRecipe() {
         </div>
       </div>
 
-      {/* Result Card */}
+      {/* Scheda dei Risultati */}
       {recipe && !isLoading && (
         <div className="row justify-content-center">
           <div className="col-lg-10">
             <div className="card border-0 shadow-lg rounded-4 overflow-hidden bg-body-secondary mt-3">
               <div className="card-body p-4 p-lg-5">
                 
-                {/* Header: Title, Badges, Heart Button */}
+                {/* Intestazione: Titolo, Badge e Pulsante Cuore */}
                 <div className="d-flex justify-content-between align-items-start mb-4 border-bottom border-secondary pb-3">
                   <div>
                     <h2 className="card-title fw-bold text-primary mb-2">{recipe.title}</h2>
@@ -204,7 +204,7 @@ function QuickRecipe() {
                   </button>
                 </div>
                 
-                {/* Macros */}
+                {/* Valori Nutrizionali (Macro) */}
                 <div className="row text-center g-2 mb-4">
                   <div className="col-3">
                     <div className="p-2 bg-body-tertiary rounded-3 border">
@@ -233,7 +233,7 @@ function QuickRecipe() {
                 </div>
 
                 <div className="row g-4">
-                  {/* Ingredients */}
+                  {/* Lista degli Ingredienti */}
                   <div className="col-sm-5">
                     <h5 className="fw-bold mb-3 border-bottom border-secondary pb-2">Ingredients</h5>
                     <ul className="list-group list-group-flush small">
@@ -252,7 +252,7 @@ function QuickRecipe() {
                     </ul>
                   </div>
 
-                  {/* Instructions */}
+                  {/* Istruzioni per la Preparazione */}
                   <div className="col-sm-7">
                     <h5 className="fw-bold mb-3 border-bottom border-secondary pb-2">Instructions</h5>
                     <div 
@@ -268,7 +268,7 @@ function QuickRecipe() {
         </div>
       )}
 
-      {/* Empty State / Welcome */}
+      {/* Stato Iniziale / Messaggio di Benvenuto */}
       {!recipe && !isLoading && (
         <div className="card border-0 shadow-sm text-center p-5 mt-4 bg-body-tertiary rounded-4">
           <div className="fs-1 mb-3">⚡️</div>

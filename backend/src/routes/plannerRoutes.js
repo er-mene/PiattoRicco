@@ -9,27 +9,27 @@ import rateLimit from 'express-rate-limit';
 const router = express.Router();
 
 const plannerGenerateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour window
-  max: 5, // Limit each IP to 5 requests per hour
-  message: { error: 'Too many meal plans generated. Please try again after an hour.' }
+  windowMs: 60 * 60 * 1000, // Finestra di 1 ora
+  max: 5, // Limita ogni IP a 5 richieste all'ora
+  message: { error: 'Troppi piani generati. Riprova tra un\'ora.' }
 });
 
 const plannerSwapLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes window
-  max: 15, // Limit each IP to 15 swap requests per 15 minutes
-  message: { error: 'Too many recipe swaps. Please try again later.' }
+  windowMs: 15 * 60 * 1000, // Finestra di 15 minuti
+  max: 15, // Limita ogni IP a 15 richieste di swap per 15 minuti
+  message: { error: 'Troppe sostituzioni di ricette. Riprova più tardi.' }
 });
 
 /**
- * Planner and Meal History Routes.
- * Manages weekly meal plan generation via Gemini AI, recipe swapping,
- * and user consumption logs/history tracking.
+ * Rotte per il Planner e lo Storico dei Pasti.
+ * Gestisce la generazione del piano settimanale tramite l'AI Gemini, la sostituzione delle ricette (swap)
+ * e il tracciamento dello storico dei pasti consumati dall'utente.
  */
 
 /**
  * GET /history/:userId
- * Retrieves the user's completed meal consumption history.
- * Only returns meals marked as consumed (isLocked = true), ordered descending by day.
+ * Recupera lo storico dei pasti consumati dall'utente.
+ * Restituisce solo i pasti contrassegnati come mangiati (isLocked = true), ordinati dal più recente.
  */
 router.get('/history/:userId', requireAuth, async (req, res) => {
   try {
@@ -39,7 +39,7 @@ router.get('/history/:userId', requireAuth, async (req, res) => {
     const historyEntries = await prisma.mealPlanEntry.findMany({
       where: {
         mealPlan: { userId: userId },
-        isLocked: true // Filter specifically for completed/eaten meals
+        isLocked: true // Filtra esplicitamente solo i pasti completati/mangiati
       },
       include: { recipe: true },
       orderBy: [
@@ -57,8 +57,8 @@ router.get('/history/:userId', requireAuth, async (req, res) => {
 
 /**
  * GET /:userId
- * Retrieves the active meal plan for the current week.
- * Dynamically updates recipe used/missed ingredients status against current pantry contents before returning.
+ * Recupera il piano alimentare attivo per la settimana in corso.
+ * Aggiorna dinamicamente lo stato degli ingredienti (disponibili/mancanti) incrociandoli con l'inventario attuale della dispensa prima di rispondere.
  */
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
@@ -80,13 +80,13 @@ router.get('/:userId', requireAuth, async (req, res) => {
 
     if (!activePlan) return res.status(404).json({ message: 'No active plan found' });
 
-    // Fetch current user pantry to compute real-time used/missing ingredients
+    // Recupera la dispensa attuale dell'utente per calcolare in tempo reale gli ingredienti usati o mancanti
     const pantry = await prisma.pantryItem.findMany({
       where: { userId }, include: { ingredient: true }
     });
     const pantryNames = pantry.map(p => p.ingredient.name.toLowerCase());
 
-    // Compare recipes against pantry items to partition into used and missed ingredient lists
+    // Confronta le ricette con gli oggetti in dispensa per separare gli ingredienti in "used" e "missed"
     activePlan.entries.forEach(entry => {
       const recipe = entry.recipe;
       const allIng = [
@@ -99,12 +99,12 @@ router.get('/:userId', requireAuth, async (req, res) => {
 
       allIng.forEach(ingName => {
         const lowerIng = ingName.toLowerCase();
-        // Categorize based on match overlap
+        // Categorizza in base alla sovrapposizione della stringa (match flessibile)
         const isInPantry = pantryNames.some(p => lowerIng.includes(p) || p.includes(lowerIng));
         isInPantry ? newUsed.push(ingName) : newMissed.push(ingName);
       });
 
-      // Overwrite the in-memory object properties returned to the client
+      // Sovrascrive dinamicamente le proprietà dell'oggetto in memoria che verrà inviato al client
       recipe.nutritionalInfo.usedIngredients = newUsed;
       recipe.nutritionalInfo.missedIngredients = newMissed;
     });
@@ -117,8 +117,8 @@ router.get('/:userId', requireAuth, async (req, res) => {
 
 /**
  * POST /generate-single
- * Instantly generates a standalone recipe matching a fraction of the daily caloric/macro target.
- * Does not persist or attach this recipe to the weekly schedule.
+ * Genera istantaneamente una ricetta indipendente che soddisfa una specifica frazione del target calorico giornaliero.
+ * Questa ricetta NON viene salvata nel database né attaccata al piano settimanale.
  */
 router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res) => {
   try {
@@ -139,7 +139,7 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
     const pantryNames = pantry.map(p => p.ingredient.name).join(', ');
     const pantryNamesLower = pantry.map(p => p.ingredient.name.toLowerCase());
 
-    // Fractional daily calorie distributions per meal type
+    // Frazioni fisse di distribuzione calorica giornaliera per tipo di pasto
     const mealFractions = {
       BREAKFAST: 0.25,
       LUNCH: 0.40,
@@ -209,7 +209,7 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
       return res.status(500).json({ error: 'AI returned invalid data format' });
     }
 
-    // Verify ingredient status against current pantry contents
+    // Verifica lo stato degli ingredienti rispetto all'inventario attuale della dispensa
     let used = [], missed = [];
     (recipeData.ingredients || []).forEach(ing => {
       const ingName = ing.name.toLowerCase();
@@ -224,7 +224,7 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
     };
 
     const finalRecipe = {
-      id: crypto.randomUUID(), // Temporary client-side UUID
+      id: crypto.randomUUID(), // UUID temporaneo necessario per il rendering lato client
       title: recipeData.title,
       instructions: recipeData.instructions,
       readyInMinutes: 30,
@@ -251,15 +251,15 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
 
 /**
  * POST /generate
- * Generates a full 7-day meal plan tailored to the user's nutritional profile and pantry.
- * Streams real-time generation steps to the frontend via Server-Sent Events (SSE).
+ * Genera un piano alimentare completo di 7 giorni su misura per il profilo nutrizionale e la dispensa dell'utente.
+ * Invia in streaming in tempo reale le fasi della generazione al frontend tramite Server-Sent Events (SSE).
  */
 router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) => {
   try {
     const userId = req.user.userId;
     const { isStrictPantryMode } = req.body || {};
 
-    // Set up Server-Sent Events (SSE) headers for real-time progress streaming
+    // Configura gli header per i Server-Sent Events (SSE) per permettere lo streaming in tempo reale del progresso
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -343,13 +343,13 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
 
     const streamingResult = await model.generateContentStream(prompt);
 
-    // Gracefully catch background generation errors in stream to prevent crash
+    // Gestisce silenziosamente eventuali errori nel flusso di generazione in background per evitare il crash del server
     streamingResult.response.catch(() => { });
 
     let fullResponse = '';
     for await (const chunk of streamingResult.stream) {
       fullResponse += chunk.text();
-      // Keep the connection alive to prevent routing or API gateway timeouts during slow streaming responses
+      // Mantiene viva la connessione (keep-alive) per prevenire timeout dal routing o dall'API gateway durante risposte lente
       if (!res.destroyed) {
         res.write(':\\\\n\\\\n');
       }
@@ -364,7 +364,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
     }
     const mealPool = JSON.parse(jsonMatch[0]);
 
-    // Parse the aggregated JSON into a structured 7-day meal plan
+    // Estrae e formatta il JSON aggregato per costruire il piano settimanale strutturato
     const aiPlan = [];
     let totalSnackCounter = 0;
 
@@ -388,7 +388,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
         }
       });
 
-      // Calibration: Scale macros and calories proportionally if AI drifts slightly off-target
+      // Calibrazione: Scala proporzionalmente calorie e macro se l'AI si è discostata leggermente dal target giornaliero
       const dayTotal = dailyMeals.reduce((sum, m) => sum + (m.calories || 0), 0);
       if (dayTotal > goal.dailyCalories + 50) {
         const scale = goal.dailyCalories / dayTotal;
@@ -409,7 +409,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
       aiPlan.push({ dayIndex: i, meals: dailyMeals });
     }
 
-    // Compute pantry ingredient intersections on the server before database write
+    // Calcola l'intersezione degli ingredienti usati/mancanti sul server prima della scrittura nel DB
     for (const day of aiPlan) {
       for (const meal of day.meals) {
         const used = [];
@@ -441,9 +441,9 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
       DINNER: '/assets/placeholders/dinner_placeholder.png'
     };
 
-    // Wrap DB cleanup and plan insertions in an interactive Prisma transaction for atomicity
+    // Avvolge la pulizia del DB e l'inserimento del piano in una transazione Prisma interattiva per garantire l'atomicità
     const mealPlan = await prisma.$transaction(async (tx) => {
-      // 1. Mark current active meal plans as expired/ended yesterday
+      // 1. Contrassegna i piani alimentari attivi come scaduti (terminati ieri)
       for (const plan of activePlans) {
         const hasLocked = plan.entries.some(e => e.isLocked);
         if (hasLocked) {
@@ -463,14 +463,14 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
         }
       }
 
-      // 2. Garbage collect orphan recipes no longer referenced by any meal plans
+      // 2. Garbage collection: elimina le ricette orfane che non sono più referenziate da nessun piano alimentare
       await tx.recipe.deleteMany({
         where: {
           mealPlanEntries: { none: {} }
         }
       });
 
-      // 3. Create the new 7-day meal plan container record
+      // 3. Crea il nuovo contenitore (record) per il piano alimentare di 7 giorni
       const endDate = new Date(today);
       endDate.setDate(today.getDate() + 6);
 
@@ -478,7 +478,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
         data: { userId, startDate: today, endDate }
       });
 
-      // 4. Transform AI model recipes into relational entries
+      // 4. Trasforma le ricette del modello AI in entità relazionali per il database
       const recipesData = [];
       const entriesData = [];
 
@@ -521,7 +521,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
         }
       }
 
-      // 5. Bulk insert recipes and association slots
+      // 5. Inserimento massivo (bulk insert) delle ricette e dei relativi slot di associazione
       await tx.recipe.createMany({ data: recipesData });
       await tx.mealPlanEntry.createMany({ data: entriesData });
 
@@ -540,7 +540,7 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
         res.write(`data: ${JSON.stringify({ type: 'error', message: errorMsg })}\n\n`);
         res.end();
       } catch (e) {
-        // SSE client already closed connection; no action required
+        // Il client SSE ha già chiuso la connessione; nessuna azione richiesta
       }
     }
   }
@@ -548,8 +548,8 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
 
 /**
  * PUT /swap/:entryId
- * Swaps a specific scheduled meal with a new recipe from Gemini AI.
- * Tailors the swap to target the remaining caloric and macro goals for that single day.
+ * Sostituisce uno specifico pasto programmato con una nuova ricetta generata dall'AI (Gemini).
+ * Personalizza la sostituzione per centrare esattamente i target calorici e macro rimanenti per quella specifica giornata.
  */
 router.put('/swap/:entryId', requireAuth, plannerSwapLimiter, async (req, res) => {
   try {
@@ -577,7 +577,7 @@ router.put('/swap/:entryId', requireAuth, plannerSwapLimiter, async (req, res) =
     const usedCarb = dayEntries.reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
     const usedFat = dayEntries.reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
 
-    // Calculate the remaining caloric and macronutrient targets for the day
+    // Calcola gli obiettivi calorici e macronutrizionali rimanenti per la giornata
     const targetCals = Math.max(100, goal.dailyCalories - usedCals);
     const targetPro = Math.max(5, goal.dailyProtein - usedPro);
     const targetCarb = Math.max(5, goal.dailyCarbs - usedCarb);
@@ -593,7 +593,7 @@ router.put('/swap/:entryId', requireAuth, plannerSwapLimiter, async (req, res) =
     const model = genAI.getGenerativeModel({
       model: "gemini-3.1-flash-lite",
       generationConfig: {
-        temperature: 1.0, // High temperature to maximize variety in swaped recipes
+        temperature: 1.0, // Alta temperatura per massimizzare la varietà e creatività nelle ricette sostituite
       },
     });
 
@@ -632,7 +632,7 @@ Return ONLY the JSON object, no other text.`;
     const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const recipeData = JSON.parse(cleanJson);
 
-    // Verify ingredient status against the current pantry inventory
+    // Verifica lo stato degli ingredienti confrontandoli con l'inventario attuale della dispensa
     let used = [], missed = [];
     (recipeData.ingredients || []).forEach(ing => {
       const ingName = ing.name.toLowerCase();
@@ -646,7 +646,7 @@ Return ONLY the JSON object, no other text.`;
       DINNER: '/assets/placeholders/dinner_placeholder.png'
     };
 
-    // Perform swap atomically in a database transaction block
+    // Esegue lo swap (sostituzione) atomicamente all'interno di una transazione del database
     const updatedEntry = await prisma.$transaction(async (tx) => {
       const newRecipe = await tx.recipe.create({
         data: {
@@ -683,8 +683,8 @@ Return ONLY the JSON object, no other text.`;
 
 /**
  * PATCH /entry/:entryId/toggle
- * Toggles a meal entry's lock status (marking it consumed/completed).
- * This updates user meal history.
+ * Attiva o disattiva lo stato di blocco di un pasto (contrassegnandolo come consumato/completato).
+ * Questa azione aggiorna di conseguenza lo storico dei pasti dell'utente.
  */
 router.patch('/entry/:entryId/toggle', requireAuth, async (req, res) => {
   try {

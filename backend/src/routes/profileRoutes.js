@@ -5,21 +5,21 @@ import { requireAuth } from '../middleware/auth.js';
 const router = express.Router();
 
 /**
- * User Profile and Nutritional Goals Routes.
- * Manages saving and retrieving the user's dietary parameters (calories, macros, allergies, and preferences).
+ * Rotte per Profilo Utente e Obiettivi Nutrizionali.
+ * Gestisce il salvataggio e il recupero dei parametri dietetici dell'utente (calorie, macro, allergie e preferenze).
  */
 
 /**
  * POST /
- * Saves or updates the user's nutritional profile and dietary preferences.
- * Uses upsert operations to create a new record if missing, or update if present.
- * User ID is securely retrieved from the JWT token to prevent client tampering.
+ * Salva o aggiorna il profilo nutrizionale e le preferenze dietetiche dell'utente.
+ * Usa operazioni di upsert per creare un nuovo record se mancante, o aggiornarlo se presente.
+ * L'ID utente viene recuperato in sicurezza dal token JWT per prevenire manomissioni da parte del client.
  */
 router.post('/', requireAuth, async (req, res) => {
   const userId = req.user.userId;
   const { dailyCalories, dailyProtein, dailyCarbs, dailyFat, excludedIngredients, preferredCuisines, diets } = req.body;
 
-  // Validate inputs to prevent NaN or unreasonable values
+  // Valida gli input per prevenire valori non numerici (NaN) o insensati
   const calVal = Number(dailyCalories || 0);
   const proVal = Number(dailyProtein || 0);
   const carbVal = Number(dailyCarbs || 0);
@@ -34,14 +34,14 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Nutritional goals must be valid non-negative numbers within reasonable biological ranges (Calories max 10000, macros max 1000g)' });
   }
 
-  // Convert targets to integers to prevent decimal storage in Postgres Int fields and eliminate precision drift
+  // Converte i target in numeri interi per evitare salvataggi di decimali nei campi Int di Postgres e perdite di precisione
   const parsedCalories = Math.round(calVal);
   const parsedProtein = Math.round(proVal);
   const parsedCarbs = Math.round(carbVal);
   const parsedFat = Math.round(fatVal);
 
   try {
-    // Wrap both operations in a transaction block to ensure atomic profile updates
+    // Avvolge entrambe le operazioni (Obiettivi e Profilo) in un blocco transazionale per assicurare aggiornamenti atomici
     const [goal, dietaryProfile] = await prisma.$transaction([
       prisma.nutritionalGoal.upsert({
         where: { userId: userId },
@@ -84,19 +84,19 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * GET /:userId
- * Retrieves the complete nutritional profile (including calorie goals and intolerances)
- * for a specific user. Implements IDOR checks to ensure users can only access their own data.
+ * Recupera il profilo nutrizionale completo (inclusi obiettivi calorici e intolleranze)
+ * per un utente specifico. Implementa controlli IDOR per assicurare che gli utenti accedano solo ai propri dati.
  */
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     
-    // IDOR protection: verify the logged-in user is requesting their own data
+    // Protezione IDOR: verifica che l'utente loggato stia richiedendo i propri dati
     if (userId !== req.user.userId) {
       return res.status(403).json({ error: 'Forbidden: Cannot access other users data' });
     }
     
-    // Retrieve the nutritional goal from the database
+    // Recupera l'obiettivo nutrizionale dal database
     const goal = await prisma.nutritionalGoal.findUnique({
       where: { userId: userId }
     });
@@ -106,7 +106,7 @@ router.get('/:userId', requireAuth, async (req, res) => {
     });
 
     if (!goal) {
-      // Return 404 if profile is not configured yet, letting frontend fall back to default values
+      // Restituisce 404 se il profilo non è ancora stato configurato, permettendo al frontend di caricare i valori di default
       return res.status(404).json({ message: 'Profile not found' });
     }
 

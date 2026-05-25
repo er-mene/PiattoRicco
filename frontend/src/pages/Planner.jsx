@@ -4,19 +4,19 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function Planner() {
   const navigate = useNavigate();
-  // State variables for weekly meal plan schedule
+  // Variabili di stato per il programma del piano alimentare settimanale
   const [mealPlan, setMealPlan] = useState(null);
   
-  // Loading, error, and UI mode state variables
+  // Variabili di stato per caricamento, errori e modalità dell'interfaccia
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [progressMessage, setProgressMessage] = useState(''); // SSE progress messages
-  const [isStrictMode, setIsStrictMode] = useState(false); // Strict Pantry Mode flag
+  const [progressMessage, setProgressMessage] = useState(''); // Messaggi di progresso streaming (SSE)
+  const [isStrictMode, setIsStrictMode] = useState(false); // Flag per la Modalità Dispensa Rigida
   
-  // UI interactive state variables (swap loading states, modal detail views, and active day)
+  // Variabili di stato per l'interazione UI (caricamento scambi, modale dettagli e giorno attivo)
   const [swappingId, setSwappingId] = useState(null);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
-  const [activeDay, setActiveDay] = useState(null); // Active tab date for responsive mobile views
+  const [activeDay, setActiveDay] = useState(null); // Giorno attivo per la navigazione a schede su dispositivi mobili
 
 
   /**
@@ -32,7 +32,7 @@ export default function Planner() {
         const grouped = groupEntriesByDay(data.entries);
         setMealPlan(grouped);
         
-        // Set default active tab on mobile view (today if in plan, or first day otherwise)
+        // Imposta la scheda attiva di default per la visualizzazione mobile (oggi se presente nel piano, altrimenti il primo giorno)
         const sortedDates = Object.keys(grouped).sort();
         if (sortedDates.length > 0) {
           const todayStr = new Date().toISOString().split('T')[0];
@@ -75,7 +75,7 @@ export default function Planner() {
           return;
         }
 
-        // Configure stream reader for Server-Sent Events (SSE)
+        // Configura il lettore di flussi per i Server-Sent Events (SSE)
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -114,11 +114,11 @@ export default function Planner() {
       }
     };
   const handleSwapRecipe = async (entryId) => {
-    setSwappingId(entryId); // Enable loading state for individual recipe button
+    setSwappingId(entryId); // Attiva lo stato di caricamento sul pulsante della singola ricetta
     try {
       const response = await fetchWithAuth(`/api/planner/swap/${entryId}`, { method: 'PUT' });
       if (response.ok) {
-        await fetchActivePlan(); // Refresh plan data
+        await fetchActivePlan(); // Aggiorna i dati del piano
       } else {
         const result = await response.json();
         alert(result.error || "Failed to swap recipe.");
@@ -126,7 +126,7 @@ export default function Planner() {
     } catch (error) {
       alert("Failed to swap recipe.");
     } finally {
-      setSwappingId(null); // Disable loading state
+      setSwappingId(null); // Disattiva lo stato di caricamento
     }
   };
 
@@ -136,7 +136,7 @@ export default function Planner() {
    */
   const handleToggleEaten = async (entryId, currentStatus) => {
     try {
-      // 1. Optimistic UI update
+      // 1. Aggiornamento Optimistic UI (Immediato)
       const updatedPlan = { ...mealPlan };
       for (let day in updatedPlan) {
         const entryIndex = updatedPlan[day].findIndex(e => e.id === entryId);
@@ -146,7 +146,7 @@ export default function Planner() {
       }
       setMealPlan(updatedPlan);
 
-      // 2. Persistent API update in background
+      // 2. Aggiornamento API persistente in background
       await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -170,8 +170,8 @@ export default function Planner() {
     return new Date(dateString).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   };
 
-  // Compute count of unique pantry items used.
-  // Warning triggers if AI keeps recommending same minimal base ingredients due to a sparse pantry.
+  // Calcola il conteggio degli ingredienti in dispensa unici utilizzati.
+  // Se la dispensa è troppo vuota l'AI tenderà a proporre sempre gli stessi ingredienti di base.
   let uniqueUsedIngredientsCount = 0;
   let totalMealsCount = 0;
   if (mealPlan) {
@@ -186,7 +186,7 @@ export default function Planner() {
     uniqueUsedIngredientsCount = usedIngredientsSet.size;
   }
   
-  // Warn if weekly menu relies on 3 or fewer unique pantry ingredients
+  // Avviso critico: Se il menu settimanale si basa su 3 o meno ingredienti unici della dispensa
   const showRepetitiveWarning = mealPlan && totalMealsCount > 0 && uniqueUsedIngredientsCount <= 3;
 
   return (
@@ -291,20 +291,20 @@ export default function Planner() {
             <div className="row g-4 mt-2 justify-content-center">
               {Object.keys(mealPlan).sort().map((dateStr) => {
                 
-                // Calculate total calories consumed (checked meals)
+                // Calcola le calorie totali consumate (pasti spuntati)
                 const consumedCals = mealPlan[dateStr]
                   .filter(e => e.isLocked)
                   .reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
 
                 const dayEntries = mealPlan[dateStr];
                 
-                // Calculate planned targets for the full day (Goal)
+                // Calcola i target nutrizionali pianificati per l'intera giornata (Obiettivo)
                 const totalCals = dayEntries.reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
                 const totalPro = dayEntries.reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
                 const totalCarbs = dayEntries.reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
                 const totalFat = dayEntries.reduce((sum, e) => sum + (e.recipe.fatGramsPerServing || 0), 0);
 
-                // Calculate actual totals consumed (Actual)
+                // Calcola i totali effettivamente consumati ad oggi (Attuale)
                 const eatenCals = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.caloriesPerServing || 0), 0);
                 const eatenPro = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.proteinGramsPerServing || 0), 0);
                 const eatenCarbs = dayEntries.filter(e => e.isLocked).reduce((sum, e) => sum + (e.recipe.carbsGramsPerServing || 0), 0);
@@ -349,7 +349,7 @@ export default function Planner() {
                           const info = entry.recipe.nutritionalInfo || {};
                           const missed = info.missedIngredients || [];
                           
-                          // Dynamic styling: completed/eaten meals appear disabled (gray and opaque)
+                          // Stile dinamico: i pasti completati/mangiati appaiono disabilitati (grigi e opachi)
                           const liClass = entry.isLocked ? 'list-group-item p-3 position-relative bg-body-tertiary opacity-50' : 'list-group-item p-3 position-relative';
                           
                           return (

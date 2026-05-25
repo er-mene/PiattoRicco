@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom';
 
 /**
- * Home – landing page for PiattoRicco.
+ * Home – Landing page principale di PiattoRicco.
+ * Mostra i vantaggi dell'app, le funzionalità e un invito all'azione per registrarsi.
  */
 function Home() {
-  // Check authentication status by reading local storage token
+  // Verifica reattiva dello stato di autenticazione per mostrare dinamicamente la Call-to-Action
   const isAuthenticated = !!localStorage.getItem('token');
 
-  // Feature cards data definition
+  // Array di configurazione per il rendering iterativo delle schede funzionalità (Features)
   const features = [
     {
       icon: '📅',
@@ -38,9 +39,9 @@ function Home() {
   return (
     <div>
 
-      {/* Hero section */}
+      {/* Sezione Hero Principale (Schermata di benvenuto) */}
       <section className="home-hero d-flex align-items-center justify-content-center text-center py-5 position-relative">
-        {/* Wallpaper background background */}
+        {/* Livello sfondo: Immagine fotografica con opacità per dare un'atmosfera premium e non ostacolare la lettura */}
         <div 
           className="position-absolute top-0 start-0 w-100 h-100" 
           style={{
@@ -55,7 +56,7 @@ function Home() {
         <div className="container px-3 px-md-4 position-relative" style={{ zIndex: 1 }}>
           <div className="row justify-content-center">
             <div className="col-12 col-lg-10">
-              {/* Promotional badges */}
+              {/* Badge informativi in stile editoriale */}
               <div className="d-flex flex-wrap gap-2 justify-content-center mb-4">
                 <span className="badge badge-sage rounded-pill px-3 py-2 fs-6 fw-normal">
                   Your digital kitchen
@@ -65,7 +66,7 @@ function Home() {
                 </span>
               </div>
 
-              {/* Title headlines */}
+              {/* Titoli principali */}
               <h1 className="display-4 fw-bold mb-3">
                 Your week, planned like a{' '}
                 <span className="text-primary">menu</span>
@@ -102,7 +103,7 @@ function Home() {
         </div>
       </section>
 
-      {/* Editorial band */}
+      {/* Fascia Editoriale (Slogan intermedio a contrasto) */}
       <section className="home-editorial-band py-5">
         <div className="container px-3 px-md-4">
           <div className="row justify-content-center text-center">
@@ -118,7 +119,7 @@ function Home() {
         </div>
       </section>
 
-      {/* Features section grid */}
+      {/* Griglia dinamica delle Funzionalità Principali (Features) */}
       <section className="py-5" id="features">
         <div className="container px-3 px-md-4">
           <div className="text-center mb-5">
@@ -147,7 +148,7 @@ function Home() {
         </div>
       </section>
 
-      {/* Bottom CTA for guests */}
+      {/* Call To Action finale (mostrata solo ai visitatori non autenticati) */}
       {!isAuthenticated && (
         <section className="py-5">
           <div className="container px-3 px-md-4">

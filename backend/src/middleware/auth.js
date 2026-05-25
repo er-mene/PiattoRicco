@@ -10,7 +10,7 @@ export const requireAuth = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // Contains { userId, email }
+    req.user = decoded; // Iniettiamo l'utente decodificato, contiene { userId, email }
     next();
   } catch (err) {
     console.error('JWT Verification Error:', err.message);

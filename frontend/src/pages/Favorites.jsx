@@ -15,38 +15,38 @@ function getRecipeImageUrl(recipe) {
 
 export default function Favorites() {
   const navigate = useNavigate();
-  // State containing the array of favorited recipes (loaded from localStorage)
+  // Stato locale contenente l'array delle ricette salvate tra i preferiti (recuperate dal localStorage)
   const [favorites, setFavorites] = useState([]);
   
-  // State to handle recipe detail modal visibility
+  // Stato per gestire la visibilità e il contenuto del modale dei dettagli ricetta
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
-    // Security redirect if the user is not authenticated
+    // Reindirizzamento di sicurezza se l'utente non è autenticato
     if (!user) { navigate('/login'); return; }
     
-    // Load the favorites list from the browser's localStorage
+    // Carica la lista dei preferiti in modo persistente dal localStorage del browser
     const storedFavorites = JSON.parse(localStorage.getItem(`favorites_${user.id}`)) || [];
     setFavorites(storedFavorites);
   }, [navigate]);
 
   /**
-   * Removes a recipe from the favorites list and updates localStorage.
+   * Rimuove una ricetta dalla lista dei preferiti e aggiorna il localStorage.
    */
   const removeFavorite = (e, recipeId) => {
-    e.stopPropagation(); // Prevent click bubbling (does not open the recipe details modal)
+    e.stopPropagation(); // Evita il propagarsi del click per non aprire il modale dei dettagli
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) return;
     
     const favKey = `favorites_${user.id}`;
-    // Filter the array to retain all items except the removed one
+    // Filtra l'array per conservare tutti gli elementi tranne quello appena rimosso
     const updatedFavs = favorites.filter(f => f.id !== recipeId);
     
     localStorage.setItem(favKey, JSON.stringify(updatedFavs));
     setFavorites(updatedFavs);
     
-    // Automatically close the modal if the currently viewed recipe is removed
+    // Chiude automaticamente il modale se la ricetta attualmente visualizzata viene rimossa
     if (selectedRecipe && selectedRecipe.id === recipeId) {
       setSelectedRecipe(null);
     }
@@ -137,7 +137,7 @@ export default function Favorites() {
                 />
 
                 <div className="row g-4">
-                  {/* Ingredients list */}
+                  {/* Lista degli ingredienti */}
                   <div className="col-md-5">
                     <h6 className="fw-bold mb-3 text-uppercase small text-muted">Ingredients</h6>
                     <ul className="list-group list-group-flush small">

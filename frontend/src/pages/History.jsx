@@ -4,11 +4,11 @@ import { fetchWithAuth } from '../utils/api';
 
 export default function History() {
   const navigate = useNavigate();
-  // Formatted array containing history groupings per day
+  // Array formattato contenente i raggruppamenti storici ordinati per giorno
   const [historyDays, setHistoryDays] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // State to manage recipe detail modal visibility
+  // Stato per gestire la visibilità e i dati del modale dei dettagli ricetta
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function History() {
         const response = await fetchWithAuth(`/api/planner/history/${user.id}`);
         if (response.ok) {
           const entries = await response.json();
-          // Group history entries by consumed date
+          // Raggruppa le singole voci dello storico in base alla data di consumazione
           const grouped = entries.reduce((acc, entry) => {
             const dateStr = new Date(entry.day).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
             if (!acc[dateStr]) {
@@ -31,7 +31,7 @@ export default function History() {
               };
             }
             acc[dateStr].entries.push(entry);
-            // Dynamically accumulate daily macronutrients to calculate totals consumed per day
+            // Accumula dinamicamente i macronutrienti per calcolare il totale consumato in quella specifica giornata
             acc[dateStr].totals.calories += entry.recipe.caloriesPerServing || 0;
             acc[dateStr].totals.protein += entry.recipe.proteinGramsPerServing || 0;
             acc[dateStr].totals.carbs += entry.recipe.carbsGramsPerServing || 0;
@@ -39,7 +39,7 @@ export default function History() {
             return acc;
           }, {});
 
-          // Convert the grouped object to an array and sort descending by date (most recent first)
+          // Converte l'oggetto raggruppato in un array e lo ordina in modo decrescente per data (il più recente in alto)
           const daysArray = Object.keys(grouped).map(k => ({
             label: k,
             ...grouped[k]

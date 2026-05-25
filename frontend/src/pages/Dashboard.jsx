@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../utils/api';
 
-// Meal placeholder image mappings to keep dashboard cards in sync
+// Mappatura dei file PNG di fallback per ogni pasto (usati quando mancano le immagini AI)
 const MEAL_PLACEHOLDER_IMAGES = {
   BREAKFAST: '/assets/placeholders/breakfast_placeholder.png',
   LUNCH: '/assets/placeholders/lunch_placeholder.png',
@@ -10,7 +10,7 @@ const MEAL_PLACEHOLDER_IMAGES = {
   DINNER: '/assets/placeholders/dinner_placeholder.png',
 };
 
-// Visual placeholders when today's calendar slot is still empty
+// Dati scheletro (Placeholders) per renderizzare slot vuoti quando non ci sono pasti programmati per oggi
 const EMPTY_MEAL_SLOTS = [
   { mealType: 'BREAKFAST', label: 'Breakfast' },
   { mealType: 'LUNCH', label: 'Lunch' },
@@ -28,18 +28,18 @@ function getMealImageUrl(recipe, mealType) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  // Principal dashboard state variables
+  // Variabili di stato fondamentali della Dashboard (Dati API)
   const [todayMeals, setTodayMeals] = useState([]);
   const [weeklyPlan, setWeeklyPlan] = useState(null);
   const [goals, setGoals] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pantry, setPantry] = useState([]);
   
-  // State variables for interactive grocery list handling
+  // Stati per gestire l'interazione in tempo reale della Lista della Spesa
   const [checkedGroceries, setCheckedGroceries] = useState(new Set());
   const [savingItems, setSavingItems] = useState(new Set());
   
-  // UI state variables (recipe modal details and favorites)
+  // Stati dell'Interfaccia Utente (Modale ricetta e sistema Preferiti)
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [selectedMealType, setSelectedMealType] = useState('LUNCH');
   const [favorites, setFavorites] = useState([]);
@@ -48,7 +48,7 @@ export default function Dashboard() {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) { navigate('/login'); return; }
     
-    // Load favorite recipes from localStorage for immediate heart icon state rendering
+    // Precaricamento dei preferiti dal localStorage per renderizzare istantaneamente l'icona a forma di cuore sui pasti
     const storedFavorites = JSON.parse(localStorage.getItem(`favorites_${user.id}`)) || [];
     setFavorites(storedFavorites);
     
@@ -65,7 +65,7 @@ export default function Dashboard() {
       const planRes = await fetchWithAuth(`/api/planner/${userId}`);
       if (planRes.ok) {
         const planData = await planRes.json();
-        setWeeklyPlan(planData); // Store the full weekly schedule to calculate grocery lists
+        setWeeklyPlan(planData); // Memorizza l'intero piano settimanale per poter derivare dinamicamente la lista della spesa
         
         const todayStr = new Date().toDateString();
         const todaysEntries = planData.entries.filter(entry => 
@@ -78,15 +78,16 @@ export default function Dashboard() {
   };
 
   /**
-   * Toggles the "Eaten / Completed" status of a specific meal entry.
-   * Employs Optimistic UI updates to update status instantly for fluid user interaction.
+   * Modifica lo stato "Mangiato" (isLocked) di un pasto.
+   * Utilizza il pattern "Optimistic UI": aggiorna prima l'interfaccia istantaneamente per mascherare la latenza, 
+   * per poi consolidare i dati nel database in background.
    */
   const handleToggleEaten = async (entryId, currentStatus) => {
-    // 1. Instantly update local state representation
+    // 1. Aggiornamento istantaneo dell'interfaccia (Optimistic Update)
     const updatedMeals = todayMeals.map(m => m.id === entryId ? { ...m, isLocked: !currentStatus } : m);
     setTodayMeals(updatedMeals);
     
-    // 2. Persist the toggle action in the database asynchronously
+    // 2. Sincronizzazione asincrona col database tramite API
     try {
       await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
         method: 'PATCH',
@@ -97,9 +98,9 @@ export default function Dashboard() {
   };
 
   /**
-   * Smart Grocery List Generator.
-   * Computes missing ingredients in real-time by intersecting the entire weekly
-   * meal plan against the user's current pantry stock.
+   * Generatore Dinamico della Lista della Spesa.
+   * Usa `useMemo` per intersecare in tempo reale tutti gli ingredienti richiesti dal piano settimanale
+   * confrontandoli con quelli che mancano in dispensa. Ricalcola solo se `weeklyPlan` cambia.
    */
   const shoppingList = useMemo(() => {
     if (!weeklyPlan) return [];
@@ -116,10 +117,10 @@ export default function Dashboard() {
       });
     });
     return Object.entries(items).map(([name, count]) => ({ name, count }));
-  }, [weeklyPlan]); // Recompute automatically whenever the meal schedule changes
+  }, [weeklyPlan]); // Scatta il ricalcolo al variare dei pasti settimanali
 
   const toggleGroceryItem = async (itemName) => {
-    // Optimistic UI: Mark item as saving to prevent double-clicks
+    // Blocca l'elemento UI (Spinner) per evitare inserimenti multipli concorrenti
     setSavingItems(prev => new Set(prev).add(itemName));
 
     const user = JSON.parse(localStorage.getItem('user'));
@@ -131,11 +132,11 @@ export default function Dashboard() {
       });
 
       if (res.ok) {
-        // Re-fetch pantry items. The purchased ingredient will disappear from the grocery list.
+        // Ricarica la dispensa aggiornata per far sparire automaticamente l'ingrediente dalla vista "Spesa"
         const updated = await fetchWithAuth(`/api/pantry/${user.id}`);
         setPantry(await updated.json());
 
-        // Re-fetch the weekly plan so the server recalculates missing ingredients against new pantry stock
+        // Ricarica il piano settimanale per costringere il server a ricalcolare le carenze nutritive in base alla nuova dispensa
         const planRes = await fetchWithAuth(`/api/planner/${user.id}`);
         if (planRes.ok) {
           const planData = await planRes.json();
@@ -145,7 +146,7 @@ export default function Dashboard() {
     } catch (error) { 
       console.error(error); 
     } finally {
-      // Stop spinner/disable states on element
+      // Ripristina l'interattività rimuovendo l'elemento dal set di elaborazione
       setSavingItems(prev => {
         const newSet = new Set(prev);
         newSet.delete(itemName);
@@ -155,11 +156,11 @@ export default function Dashboard() {
   };
 
   /**
-   * Toggles bookmarking/favoriting a recipe.
-   * Syncs state to localStorage to share status across different routes.
+   * Aggiunge o rimuove una ricetta dai preferiti in LocalStorage.
+   * Sincronizza lo stato globale in modo che il cuoricino sia aggiornato anche nel Planner e nella Cronologia.
    */
   const toggleFavorite = (e, recipe, mealType) => {
-    e.stopPropagation(); // Avoid triggering recipe details modal onclick
+    e.stopPropagation(); // Blocca il bubbling dell'evento per non aprire il modale della ricetta al click sul cuore
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) return;
     
@@ -178,7 +179,7 @@ export default function Dashboard() {
     setFavorites(updatedFavs);
   };
 
-  // If a remote image fails, fall back to the meal-type placeholder PNG
+  // Sistema di fallback di emergenza nel caso in cui un link immagine dal DB remoto restituisca un errore 404
   const handleMealImageError = (event, mealType) => {
     event.target.onerror = null;
     event.target.src = MEAL_PLACEHOLDER_IMAGES[mealType] || MEAL_PLACEHOLDER_IMAGES.LUNCH;

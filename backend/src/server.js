@@ -3,11 +3,11 @@ import cors from 'cors';
 import prisma from './db.js';
 
 /**
- * Express application entry point.
- * Configures the server environment, registers middlewares, routes, and begins listening.
+ * Punto di ingresso principale dell'applicazione Express.
+ * Configura l'ambiente del server, registra i middleware, le rotte e avvia l'ascolto.
  */
 
-// Fail-fast validation of required environment variables to prevent runtime crashes.
+// Validazione immediata ("fail-fast") delle variabili d'ambiente obbligatorie per prevenire crash a runtime
 const requiredEnvVars = ['JWT_SECRET', 'GEMINI_API_KEY'];
 const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 if (missingVars.length > 0) {
@@ -24,16 +24,16 @@ import plannerRoutes from './routes/plannerRoutes.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS for authorized development and production origins.
+// Abilita le policy CORS per autorizzare le richieste dai client (frontend) di sviluppo e produzione
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Add other allowed origins here
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Aggiungi altri domini consentiti qui
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
 
-// API Routes registration
+// Registrazione dei router per le singole API (endpoints)
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/pantry', pantryRoutes);
@@ -44,7 +44,7 @@ const server = app.listen(PORT, () => {
   console.log(`Backend server is running on http://localhost:${PORT}`);
 });
 
-// Graceful shutdown handling to disconnect Prisma and close the server cleanly on SIGINT.
+// Gestione di spegnimento controllato ("graceful shutdown") per disconnettere Prisma e chiudere il server pulito su SIGINT
 process.on('SIGINT', async () => {
   server.close();
   await prisma.$disconnect();
