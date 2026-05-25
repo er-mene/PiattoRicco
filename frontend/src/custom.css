@@ -210,6 +210,16 @@ table, th, td {
   border: 1px solid var(--pr-border-color) !important;
 }
 
+/*
+  Dashboard meal placeholder images are illustrated PNGs with extra padding.
+  object-fit: contain keeps the artwork visible; cover was cropping them to blank cream on light cards.
+*/
+.meal-card-img {
+  height: 180px;
+  object-fit: contain;
+  background-color: var(--pr-surface-muted);
+}
+
 /* 
   5. UTILITIES
 */

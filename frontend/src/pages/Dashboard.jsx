@@ -2,6 +2,30 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../utils/api';
 
+// Same artwork paths the backend uses for AI recipes — keeps dashboard cards in sync
+const MEAL_PLACEHOLDER_IMAGES = {
+  BREAKFAST: '/assets/placeholders/breakfast_placeholder.png',
+  LUNCH: '/assets/placeholders/lunch_placeholder.png',
+  SNACK: '/assets/placeholders/snack_placeholder.png',
+  DINNER: '/assets/placeholders/dinner_placeholder.png',
+};
+
+// Shown when today has no planned meals yet (visual slots instead of a plain alert only)
+const EMPTY_MEAL_SLOTS = [
+  { mealType: 'BREAKFAST', label: 'Breakfast' },
+  { mealType: 'LUNCH', label: 'Lunch' },
+  { mealType: 'DINNER', label: 'Dinner' },
+  { mealType: 'SNACK', label: 'Snack' },
+];
+
+function getMealImageUrl(recipe, mealType) {
+  const url = recipe?.imageUrl?.trim();
+  if (url) {
+    return url.startsWith('/') ? url : `/${url}`;
+  }
+  return MEAL_PLACEHOLDER_IMAGES[mealType] || MEAL_PLACEHOLDER_IMAGES.LUNCH;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   // Stati principali dei dati della Dashboard
@@ -17,6 +41,7 @@ export default function Dashboard() {
   
   // Stati per l'interazione UI (dettaglio ricette e preferiti)
   const [selectedRecipe, setSelectedRecipe] = useState(null);
+  const [selectedMealType, setSelectedMealType] = useState('LUNCH');
   const [favorites, setFavorites] = useState([]);
 
   useEffect(() => {
@@ -155,6 +180,11 @@ export default function Dashboard() {
     setFavorites(updatedFavs);
   };
 
+  // If a remote image fails, fall back to the meal-type placeholder PNG
+  const handleMealImageError = (event, mealType) => {
+    event.target.onerror = null;
+    event.target.src = MEAL_PLACEHOLDER_IMAGES[mealType] || MEAL_PLACEHOLDER_IMAGES.LUNCH;
+  };
 
   if (isLoading) return <div className="mt-5 text-center"><h5>Loading Executive Dashboard...</h5></div>;
   if (!goals) return <div className="mt-5 text-center"><h5>Please set your Nutritional Profile first.</h5></div>;
@@ -225,7 +255,33 @@ export default function Dashboard() {
         {/* Colonna di Sinistra: I Pasti Odierni */}
         <div className="col-lg-8">
           {todayMeals.length === 0 ? (
-            <div className="alert alert-info border-0 shadow-sm rounded-4">No meal plan generated for today. Go to Planner to start.</div>
+            <>
+              <p className="text-muted mb-4">
+                No meals planned for today yet. Use the Planner to fill your menu.
+              </p>
+              <div className="row g-4">
+                {EMPTY_MEAL_SLOTS.map((slot) => (
+                  <div className="col-6 col-md-3" key={slot.mealType}>
+                    <div className="card h-100 shadow-sm border-0 bg-body-secondary">
+                      <img
+                        src={MEAL_PLACEHOLDER_IMAGES[slot.mealType]}
+                        className="card-img-top meal-card-img"
+                        alt={`${slot.label} placeholder`}
+                      />
+                      <div className="card-body text-center py-3">
+                        <span className="badge bg-dark text-white small mb-2">{slot.mealType}</span>
+                        <p className="text-muted small mb-0">{slot.label}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-center mt-4">
+                <button className="btn btn-primary fw-bold" onClick={() => navigate('/planner')}>
+                  Go to Planner
+                </button>
+              </div>
+            </>
           ) : (
             <div className="row g-4">
               {todayMeals.map(entry => (
@@ -233,13 +289,17 @@ export default function Dashboard() {
                   <div 
                     className={`card h-100 shadow-sm border-0 position-relative hover-card ${entry.isLocked ? 'bg-body-tertiary opacity-75' : 'bg-body-secondary'}`}
                     style={{ cursor: 'pointer' }}
-                    onClick={() => setSelectedRecipe(entry.recipe)}
+                    onClick={() => {
+                      setSelectedRecipe(entry.recipe);
+                      setSelectedMealType(entry.mealType);
+                    }}
                   >
-                    <img 
-                      src={entry.recipe.imageUrl} 
-                      className="card-img-top" 
-                      alt={entry.recipe.title} 
-                      style={{ height: '180px', objectFit: 'cover', opacity: entry.isLocked ? 0.5 : 1 }} 
+                    <img
+                      src={getMealImageUrl(entry.recipe, entry.mealType)}
+                      className="card-img-top meal-card-img"
+                      alt={entry.recipe.title}
+                      onError={(e) => handleMealImageError(e, entry.mealType)}
+                      style={{ opacity: entry.isLocked ? 0.5 : 1 }}
                     />
                     <div 
                       className="position-absolute top-0 end-0 p-2 d-flex gap-2" 
@@ -337,11 +397,12 @@ export default function Dashboard() {
               </div>
               
               <div className="modal-body p-4">
-                <img 
-                  src={selectedRecipe.imageUrl} 
-                  className="img-fluid rounded-4 mb-4 w-100" 
-                  style={{ maxHeight: '300px', objectFit: 'cover' }} 
-                  alt="" 
+                <img
+                  src={getMealImageUrl(selectedRecipe, selectedMealType)}
+                  className="img-fluid rounded-4 mb-4 w-100 meal-card-img"
+                  style={{ maxHeight: '300px' }}
+                  alt=""
+                  onError={(e) => handleMealImageError(e, selectedMealType)}
                 />
 
                 <div className="row g-4">
