@@ -42,8 +42,8 @@ function Home() {
       {/* Sezione Hero Principale (Schermata di benvenuto) */}
       <section className="home-hero d-flex align-items-center justify-content-center text-center py-5 position-relative">
         {/* Livello sfondo: Immagine fotografica con opacità per dare un'atmosfera premium e non ostacolare la lettura */}
-        <div 
-          className="position-absolute top-0 start-0 w-100 h-100" 
+        <div
+          className="position-absolute top-0 start-0 w-100 h-100"
           style={{
             backgroundImage: "url('/assets/images/wallpaper.jpg')",
             backgroundSize: 'cover',
@@ -52,7 +52,7 @@ function Home() {
             zIndex: 0
           }}
         ></div>
-        
+
         <div className="container px-3 px-md-4 position-relative" style={{ zIndex: 1 }}>
           <div className="row justify-content-center">
             <div className="col-12 col-lg-10">
@@ -84,7 +84,7 @@ function Home() {
                 {!isAuthenticated && (
                   <Link
                     to="/register"
-                    className="btn btn-primary btn-lg px-4"
+                    className="btn btn-primary fw-bold btn-lg px-4"
                     id="hero-get-started-btn"
                   >
                     Start your AI-powered journal
@@ -110,8 +110,8 @@ function Home() {
             <div className="col-12 col-lg-10">
               <h2 className="fw-bold mb-3">AI-Powered Culinary Intelligence</h2>
               <p className="text-muted mb-0">
-                PiattoRicco fuses advanced AI suggestions with your digital pantry and weekly planner. 
-                Our Gemini AI integration acts as your personal chef, generating healthy recipes, minimizing waste, 
+                PiattoRicco fuses advanced AI suggestions with your digital pantry and weekly planner.
+                Our Gemini AI integration acts as your personal chef, generating healthy recipes, minimizing waste,
                 and automatically calculating your precise daily macronutrient needs.
               </p>
             </div>
