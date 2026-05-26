@@ -9,6 +9,7 @@ function QuickRecipe() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [recipe, setRecipe] = useState(null);
+  const [generatedMealType, setGeneratedMealType] = useState('LUNCH');
   
   // Gestione dello stato dei preferiti sincronizzato con il localStorage
   const [favorites, setFavorites] = useState([]);
@@ -31,7 +32,10 @@ function QuickRecipe() {
       try {
         const parsed = JSON.parse(savedQuickRecipe);
         if (parsed.recipe) setRecipe(parsed.recipe);
-        if (parsed.mealType) setMealType(parsed.mealType);
+        if (parsed.mealType) {
+          setMealType(parsed.mealType);
+          setGeneratedMealType(parsed.mealType);
+        }
         if (parsed.isStrictMode !== undefined) setIsStrictMode(parsed.isStrictMode);
       } catch (e) {
         console.error("Failed to parse saved quick recipe");
@@ -60,6 +64,7 @@ function QuickRecipe() {
 
       const data = await response.json();
       setRecipe(data.recipe);
+      setGeneratedMealType(mealType);
       
       // Mette in cache la ricetta nel localStorage per preservare lo stato in caso di cambio pagina
       localStorage.setItem(`quick_recipe_${userId}`, JSON.stringify({
@@ -195,7 +200,7 @@ function QuickRecipe() {
                     <h2 className="card-title fw-bold text-primary mb-2">{recipe.title}</h2>
                     <div className="d-flex flex-wrap gap-1 align-items-center">
                       <span className="badge bg-dark border shadow-sm fs-6">
-                        {mealType}
+                        {generatedMealType}
                       </span>
                       {(recipe.nutritionalInfo?.tags || []).map((tag, i) => (
                         <span key={i} className="badge badge-sage fs-6">
