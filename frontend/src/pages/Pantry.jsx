@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../utils/api';
 
@@ -14,6 +14,7 @@ export default function Pantry() {
   const [showSuggestions, setShowSuggestions] = useState(false); // Visibilità del menu a tendina
   const [isSearching, setIsSearching] = useState(false); // Indicatore di caricamento della ricerca
   const [selectedIngredient, setSelectedIngredient] = useState(null); // Oggetto ingrediente validato e selezionato
+  const skipSearchRef = useRef(false);
 
   // Stato del form per l'aggiunta di un nuovo ingrediente
   const [formData, setFormData] = useState({
@@ -45,6 +46,11 @@ export default function Pantry() {
 
   useEffect(() => {
     let active = true;
+
+    if (skipSearchRef.current) {
+      skipSearchRef.current = false;
+      return;
+    }
 
     // Disabilita la ricerca se l'input dell'utente è troppo corto (meno di 2 caratteri)
     if (formData.name.trim().length < 2) {
@@ -92,6 +98,7 @@ export default function Pantry() {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
     if (name === 'name') {
+      skipSearchRef.current = false;
       // Verifica la presenza di una corrispondenza esatta a ogni singolo cambiamento dell'input
       const match = suggestions.find(s => s.name.toLowerCase() === value.trim().toLowerCase());
       if (match) {
@@ -104,6 +111,7 @@ export default function Pantry() {
 
   // Gestore per la selezione di un suggerimento dal menu a tendina
   const handleSelectSuggestion = (suggestion) => {
+    skipSearchRef.current = true;
     setFormData({ ...formData, name: suggestion.name });
     setSelectedIngredient(suggestion);
     setShowSuggestions(false); // Nasconde il menu a tendina dopo aver selezionato un elemento
