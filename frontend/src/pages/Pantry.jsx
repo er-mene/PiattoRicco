@@ -18,7 +18,7 @@ export default function Pantry() {
 
   // Stato del form per l'aggiunta di un nuovo ingrediente
   const [formData, setFormData] = useState({
-    name: '',
+    ingredientName: '',
     quantity: '',
     unit: ''
   });
@@ -53,7 +53,7 @@ export default function Pantry() {
     }
 
     // Disabilita la ricerca se l'input dell'utente è troppo corto (meno di 2 caratteri)
-    if (formData.name.trim().length < 2) {
+    if (formData.ingredientName.trim().length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       setIsSearching(false);
@@ -64,14 +64,14 @@ export default function Pantry() {
     const delayDebounceFn = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const response = await fetchWithAuth(`/api/ingredients/autocomplete?query=${formData.name}`);
+        const response = await fetchWithAuth(`/api/ingredients/autocomplete?query=${formData.ingredientName}`);
         if (response.ok && active) {
           const data = await response.json();
           setSuggestions(data);
           setShowSuggestions(true);
 
           // Cerca una corrispondenza esatta (case-insensitive) tra i suggerimenti recuperati per validare l'input
-          const match = data.find(s => s.name.toLowerCase() === formData.name.trim().toLowerCase());
+          const match = data.find(s => s.name.toLowerCase() === formData.ingredientName.trim().toLowerCase());
           if (match) {
             setSelectedIngredient(match);
           }
@@ -92,12 +92,12 @@ export default function Pantry() {
       active = false;
       clearTimeout(delayDebounceFn);
     };
-  }, [formData.name]);
+  }, [formData.ingredientName]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    if (name === 'name') {
+    if (name === 'ingredientName') {
       skipSearchRef.current = false;
       // Verifica la presenza di una corrispondenza esatta a ogni singolo cambiamento dell'input
       const match = suggestions.find(s => s.name.toLowerCase() === value.trim().toLowerCase());
@@ -112,14 +112,14 @@ export default function Pantry() {
   // Gestore per la selezione di un suggerimento dal menu a tendina
   const handleSelectSuggestion = (suggestion) => {
     skipSearchRef.current = true;
-    setFormData({ ...formData, name: suggestion.name });
+    setFormData({ ...formData, ingredientName: suggestion.name });
     setSelectedIngredient(suggestion);
     setShowSuggestions(false); // Nasconde il menu a tendina dopo aver selezionato un elemento
   };
 
   const handleAddItem = async (e) => {
     e.preventDefault();
-    const ingredientName = formData.name.trim();
+    const ingredientName = formData.ingredientName.trim();
     if (!ingredientName) return;
 
     // Forza l'utente a selezionare esclusivamente ingredienti suggeriti e validati dall'AI
@@ -161,7 +161,7 @@ export default function Pantry() {
       setItems([addedItem, ...items]);
       
       // Svuota unicamente il campo del nome per permettere un inserimento rapido in sequenza
-      setFormData({ ...formData, name: '' }); 
+      setFormData({ ...formData, ingredientName: '' }); 
       setSelectedIngredient(null);
     } catch (err) {
       setError(err.message);
@@ -205,7 +205,7 @@ export default function Pantry() {
     }
   };
   
-  const isNameValid = !!(selectedIngredient && selectedIngredient.name.toLowerCase() === formData.name.trim().toLowerCase());
+  const isNameValid = !!(selectedIngredient && selectedIngredient.name.toLowerCase() === formData.ingredientName.trim().toLowerCase());
 
   return (
     <div className="row justify-content-center mt-4">
@@ -226,11 +226,11 @@ export default function Pantry() {
                 <input 
                   type="text" 
                   className={`form-control ${isNameValid ? 'is-valid' : ''}`} 
-                  name="name"
+                  name="ingredientName"
                   placeholder="Ingredient (e.g. Chicken)" 
-                  value={formData.name}
+                  value={formData.ingredientName}
                   onChange={handleChange}
-                  autoComplete="off" // Disabilita l'autocompletamento nativo del browser per usare quello custom AI
+                  autoComplete="one-time-code" // Disabilita l'autocompletamento nativo del browser per usare quello custom AI
                   disabled={isLoading}
                   required
                 />
@@ -249,7 +249,7 @@ export default function Pantry() {
                 )}
 
                 {/* Messaggio di avviso visibile se l'utente digita ma non seleziona nulla dalla lista */}
-                {!isNameValid && formData.name.trim().length >= 2 && (
+                {!isNameValid && formData.ingredientName.trim().length >= 2 && (
                   <div className="text-warning small position-absolute start-0 ps-1" style={{ fontSize: '0.82rem', top: '100%', zIndex: 10 }}>
                     ⚠️ Choose a suggestion from the list
                   </div>
