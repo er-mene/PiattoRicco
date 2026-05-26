@@ -207,6 +207,15 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* AI Disclaimer Callout */}
+      <div className="alert alert-warning shadow-sm border-0 rounded-4 d-flex align-items-center gap-3 mb-4" 
+           style={{ background: 'rgba(196, 92, 62, 0.08)', border: '1px solid rgba(196, 92, 62, 0.2)' }}>
+        <span className="fs-3">💡</span>
+        <div style={{ fontSize: '0.88rem' }}>
+          <strong className="text-primary">Gemini AI Disclaimer:</strong> Today's nutritional targets and meal recommendations are automatically generated using Google Gemini AI. These values are estimates and can make mistakes. Please verify ingredients for health safety and allergies, and consult a medical professional or registered dietitian for personalized clinical nutritional goals.
+        </div>
+      </div>
+
       <div className="card shadow-sm border-0 mb-5 p-4 rounded-4 bg-body-tertiary">
         <h6 className="fw-bold text-uppercase text-muted mb-4 small">Nutritional Performance (Today)</h6>
         <div className="row row-cols-1 row-cols-md-4 g-4">

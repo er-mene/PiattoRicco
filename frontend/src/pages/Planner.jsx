@@ -240,6 +240,15 @@ export default function Planner() {
           </div>
         </div>
 
+        {/* AI Disclaimer Callout */}
+        <div className="alert alert-warning shadow-sm border-0 rounded-4 d-flex align-items-center gap-3 mt-4" 
+             style={{ background: 'rgba(196, 92, 62, 0.08)', border: '1px solid rgba(196, 92, 62, 0.2)' }}>
+          <span className="fs-3">💡</span>
+          <div style={{ fontSize: '0.88rem' }}>
+            <strong className="text-primary">Gemini AI Disclaimer:</strong> Weekly meal plans and nutritional targets are automatically generated. Google Gemini AI can make mistakes, and macro calculations (calories, protein, carbs, fats) are estimates that may contain errors. Please review all recipes, cross-verify ingredients, and consult a qualified dietitian or healthcare provider before embarking on new dietary plans.
+          </div>
+        </div>
+
         {error && <div className="alert alert-danger shadow-sm mt-4"><strong>Oops!</strong> {error}</div>}
 
         {showRepetitiveWarning && !isLoading && !error && (

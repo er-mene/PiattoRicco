@@ -33,7 +33,7 @@ function App() {
   };
 
   return (
-    <div>
+    <div className="d-flex flex-column min-vh-100">
       {/* Navbar fissata in alto ("sticky") per mantenere la navigazione sempre accessibile durante lo scroll. */}
       <nav className={`navbar navbar-expand-lg navbar-light bg-body border-bottom shadow-sm sticky-top${isHome ? '' : ' mb-4'}`}>
         <div className="container px-3 px-md-4">
@@ -80,7 +80,7 @@ function App() {
       </nav>
 
       {/* Main layout container routing */}
-      <main className={isHome ? '' : 'container px-3 px-md-4'}>
+      <main className={`flex-grow-1 ${isHome ? '' : 'container px-3 px-md-4'}`}>
         <Routes>
           {/* Public Route */}
           <Route path="/" element={<Home />} />
@@ -99,6 +99,20 @@ function App() {
           <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
         </Routes>
       </main>
+
+      {/* Global Footer with AI Disclaimer */}
+      <footer className="py-4 mt-5 border-top bg-body-tertiary">
+        <div className="container px-3 px-md-4 text-center">
+          <p className="text-muted small mb-2">
+            © {new Date().getFullYear()} 🍽️ PiattoRicco. All rights reserved.
+          </p>
+          <p className="mx-auto text-muted mb-0" style={{ fontSize: '0.78rem', maxWidth: '850px', lineHeight: '1.5' }}>
+            <span className="fw-bold text-primary">Disclaimer:</span> Meal plans and nutritional calculations are generated using the Google Gemini API. 
+            AI-generated recipes, ingredients, instructions, and nutritional values (calories, protein, carbs, fats) are estimates and may contain errors. 
+            Please review all ingredients carefully for any potential allergens or intolerance, and consult a qualified healthcare professional or registered dietitian before making significant changes to your diet.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
