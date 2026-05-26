@@ -13,6 +13,10 @@ import Favorites from './pages/Favorites';
 import History from './pages/History';
 import QuickRecipe from './pages/QuickRecipe';
 
+// Route Guard Wrappers
+import ProtectedRoute from './components/ProtectedRoute';
+import GuestRoute from './components/GuestRoute';
+
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -78,16 +82,21 @@ function App() {
       {/* Main layout container routing */}
       <main className={isHome ? '' : 'container px-3 px-md-4'}>
         <Routes>
+          {/* Public Route */}
           <Route path="/" element={<Home />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/pantry" element={<Pantry />} />
-          <Route path="/planner" element={<Planner />} />
-          <Route path="/quick-recipe" element={<QuickRecipe />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/favorites" element={<Favorites />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+
+          {/* Protected Routes */}
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/pantry" element={<ProtectedRoute><Pantry /></ProtectedRoute>} />
+          <Route path="/planner" element={<ProtectedRoute><Planner /></ProtectedRoute>} />
+          <Route path="/quick-recipe" element={<ProtectedRoute><QuickRecipe /></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+          <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+
+          {/* Guest-Only Routes */}
+          <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
+          <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
         </Routes>
       </main>
     </div>

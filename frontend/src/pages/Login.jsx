@@ -39,7 +39,9 @@ export default function Login() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      navigate('/'); 
+      // Redirect to the page they originally tried to visit, or fallback to the homepage
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
       
     } catch (err) {
       setError(err.message);
