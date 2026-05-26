@@ -84,19 +84,21 @@ function Home() {
                 {!isAuthenticated && (
                   <Link
                     to="/register"
-                    className="btn btn-primary fw-bold btn-lg px-4"
+                    className="btn btn-primary btn-lg px-4"
                     id="hero-get-started-btn"
                   >
                     Start your AI-powered journal
                   </Link>
                 )}
-                <Link
-                  to="/dashboard"
-                  className="btn btn-light border shadow-sm btn-lg px-4 fw-bold text-secondary"
-                  id="hero-dashboard-btn"
-                >
-                  Go to Dashboard
-                </Link>
+                {isAuthenticated && (
+                  <Link
+                    to="/dashboard"
+                    className="btn btn-light border shadow-sm btn-lg px-4 fw-bold text-secondary"
+                    id="hero-dashboard-btn"
+                  >
+                    Go to Dashboard
+                  </Link>
+                )}
               </div>
             </div>
           </div>
