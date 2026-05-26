@@ -34,11 +34,11 @@ export default function Dashboard() {
   const [goals, setGoals] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pantry, setPantry] = useState([]);
-  
+
   // Stati per gestire l'interazione in tempo reale della Lista della Spesa
   const [checkedGroceries, setCheckedGroceries] = useState(new Set());
   const [savingItems, setSavingItems] = useState(new Set());
-  
+
   // Stati dell'Interfaccia Utente (Modale ricetta e sistema Preferiti)
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [selectedMealType, setSelectedMealType] = useState('LUNCH');
@@ -47,11 +47,11 @@ export default function Dashboard() {
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) { navigate('/login'); return; }
-    
+
     // Precaricamento dei preferiti dal localStorage per renderizzare istantaneamente l'icona a forma di cuore sui pasti
     const storedFavorites = JSON.parse(localStorage.getItem(`favorites_${user.id}`)) || [];
     setFavorites(storedFavorites);
-    
+
     fetchDashboardData(user.id);
   }, [navigate]);
 
@@ -66,9 +66,9 @@ export default function Dashboard() {
       if (planRes.ok) {
         const planData = await planRes.json();
         setWeeklyPlan(planData); // Memorizza l'intero piano settimanale per poter derivare dinamicamente la lista della spesa
-        
+
         const todayStr = new Date().toDateString();
-        const todaysEntries = planData.entries.filter(entry => 
+        const todaysEntries = planData.entries.filter(entry =>
           new Date(entry.day).toDateString() === todayStr
         );
         setTodayMeals(todaysEntries);
@@ -86,7 +86,7 @@ export default function Dashboard() {
     // 1. Aggiornamento istantaneo dell'interfaccia (Optimistic Update)
     const updatedMeals = todayMeals.map(m => m.id === entryId ? { ...m, isLocked: !currentStatus } : m);
     setTodayMeals(updatedMeals);
-    
+
     // 2. Sincronizzazione asincrona col database tramite API
     try {
       await fetchWithAuth(`/api/planner/entry/${entryId}/toggle`, {
@@ -143,8 +143,8 @@ export default function Dashboard() {
           setWeeklyPlan(planData);
         }
       }
-    } catch (error) { 
-      console.error(error); 
+    } catch (error) {
+      console.error(error);
     } finally {
       // Ripristina l'interattività rimuovendo l'elemento dal set di elaborazione
       setSavingItems(prev => {
@@ -163,10 +163,10 @@ export default function Dashboard() {
     e.stopPropagation(); // Blocca il bubbling dell'evento per non aprire il modale della ricetta al click sul cuore
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) return;
-    
+
     const favKey = `favorites_${user.id}`;
     const currentFavs = JSON.parse(localStorage.getItem(favKey)) || [];
-    
+
     const isFav = currentFavs.some(f => f.id === recipe.id);
     let updatedFavs;
     if (isFav) {
@@ -174,7 +174,7 @@ export default function Dashboard() {
     } else {
       updatedFavs = [...currentFavs, { ...recipe, fallbackMealType: mealType || 'LUNCH' }];
     }
-    
+
     localStorage.setItem(favKey, JSON.stringify(updatedFavs));
     setFavorites(updatedFavs);
   };
@@ -208,8 +208,8 @@ export default function Dashboard() {
       </div>
 
       {/* AI Disclaimer Callout */}
-      <div className="alert alert-warning shadow-sm border-0 rounded-4 d-flex align-items-center gap-3 mb-4" 
-           style={{ background: 'rgba(196, 92, 62, 0.08)', border: '1px solid rgba(196, 92, 62, 0.2)' }}>
+      <div className="alert alert-warning shadow-sm border-0 rounded-4 d-flex align-items-center gap-3 mb-4"
+        style={{ background: 'rgba(196, 92, 62, 0.08)', border: '1px solid rgba(196, 92, 62, 0.2)' }}>
         <span className="fs-3">💡</span>
         <div style={{ fontSize: '0.88rem' }}>
           <strong className="text-primary">Gemini AI Disclaimer:</strong> Today's nutritional targets and meal recommendations are automatically generated using Google Gemini AI. These values are estimates and can make mistakes. Please verify ingredients for health safety and allergies, and consult a medical professional or registered dietitian for personalized clinical nutritional goals.
@@ -225,7 +225,7 @@ export default function Dashboard() {
               <span className="small text-muted">{eaten.cals.toFixed(0)}/{goals.dailyCalories}</span>
             </div>
             <div className="progress" style={{ height: '8px' }}>
-              <div className="progress-bar bg-warning" style={{ width: `${(eaten.cals/goals.dailyCalories)*100}%` }}></div>
+              <div className="progress-bar bg-warning" style={{ width: `${(eaten.cals / goals.dailyCalories) * 100}%` }}></div>
             </div>
           </div>
           <div className="col">
@@ -234,7 +234,7 @@ export default function Dashboard() {
               <span className="small text-muted">{eaten.pro.toFixed(0)}/{goals.dailyProtein}g</span>
             </div>
             <div className="progress" style={{ height: '8px' }}>
-              <div className="progress-bar bg-info" style={{ width: `${(eaten.pro/goals.dailyProtein)*100}%` }}></div>
+              <div className="progress-bar bg-info" style={{ width: `${(eaten.pro / goals.dailyProtein) * 100}%` }}></div>
             </div>
           </div>
           <div className="col">
@@ -243,7 +243,7 @@ export default function Dashboard() {
               <span className="small text-muted">{eaten.carb.toFixed(0)}/{goals.dailyCarbs}g</span>
             </div>
             <div className="progress" style={{ height: '8px' }}>
-              <div className="progress-bar bg-success" style={{ width: `${(eaten.carb/goals.dailyCarbs)*100}%` }}></div>
+              <div className="progress-bar bg-success" style={{ width: `${(eaten.carb / goals.dailyCarbs) * 100}%` }}></div>
             </div>
           </div>
           <div className="col">
@@ -252,7 +252,7 @@ export default function Dashboard() {
               <span className="small text-muted">{eaten.fat.toFixed(0)}/{goals.dailyFat}g</span>
             </div>
             <div className="progress" style={{ height: '8px' }}>
-              <div className="progress-bar bg-danger" style={{ width: `${(eaten.fat/goals.dailyFat)*100}%` }}></div>
+              <div className="progress-bar bg-danger" style={{ width: `${(eaten.fat / goals.dailyFat) * 100}%` }}></div>
             </div>
           </div>
         </div>
@@ -294,7 +294,7 @@ export default function Dashboard() {
             <div className="row g-4">
               {todayMeals.map(entry => (
                 <div className="col-md-6" key={entry.id}>
-                  <div 
+                  <div
                     className={`card h-100 shadow-sm border-0 position-relative hover-card ${entry.isLocked ? 'bg-body-tertiary opacity-75' : 'bg-body-secondary'}`}
                     style={{ cursor: 'pointer' }}
                     onClick={() => {
@@ -309,11 +309,11 @@ export default function Dashboard() {
                       onError={(e) => handleMealImageError(e, entry.mealType)}
                       style={{ opacity: entry.isLocked ? 0.5 : 1 }}
                     />
-                    <div 
-                      className="position-absolute top-0 end-0 p-2 d-flex gap-2" 
+                    <div
+                      className="position-absolute top-0 end-0 p-2 d-flex gap-2"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button 
+                      <button
                         className="btn btn-sm btn-light rounded-circle shadow-sm p-1 d-flex align-items-center justify-content-center"
                         style={{ width: '32px', height: '32px', zIndex: 10 }}
                         onClick={(e) => toggleFavorite(e, entry.recipe, entry.mealType)}
@@ -321,9 +321,9 @@ export default function Dashboard() {
                       >
                         {favorites.some(f => f.id === entry.recipe.id) ? '❤️' : '🤍'}
                       </button>
-                      <input 
-                        type="checkbox" 
-                        className="form-check-input shadow" 
+                      <input
+                        type="checkbox"
+                        className="form-check-input shadow"
                         style={{ transform: 'scale(1.3)', cursor: 'pointer', margin: '6px' }}
                         checked={entry.isLocked}
                         onChange={() => handleToggleEaten(entry.id, entry.isLocked)}
@@ -342,8 +342,8 @@ export default function Dashboard() {
                         {entry.recipe.title}
                       </h6>
                       <div className="mt-auto pt-3 d-flex justify-content-between">
-                         <span className="small text-muted fw-bold">{entry.recipe.caloriesPerServing.toFixed(0)} kcal</span>
-                         {entry.isLocked && <span className="text-success small fw-bold">COMPLETED</span>}
+                        <span className="small text-muted fw-bold">{entry.recipe.caloriesPerServing.toFixed(0)} kcal</span>
+                        {entry.isLocked && <span className="text-success small fw-bold">COMPLETED</span>}
                       </div>
                     </div>
                   </div>
@@ -369,9 +369,9 @@ export default function Dashboard() {
                     const isChecked = checkedGroceries.has(item.name);
                     return (
                       <li key={index} className="list-group-item px-0 py-2 border-light d-flex align-items-center">
-                        <input 
-                          type="checkbox" 
-                          className="form-check-input me-3" 
+                        <input
+                          type="checkbox"
+                          className="form-check-input me-3"
                           checked={savingItems.has(item.name)}
                           disabled={savingItems.has(item.name)}
                           onChange={() => toggleGroceryItem(item.name)}
@@ -403,11 +403,6 @@ export default function Dashboard() {
                 <div className="d-flex justify-content-between align-items-center w-100">
                   <div className="d-flex align-items-center gap-2 flex-wrap">
                     <h5 className="fw-bold mb-0">{selectedRecipe.title}</h5>
-                    {selectedRecipe.sourceType === 'AI_GENERATED' && (
-                      <span className="badge text-dark border border-warning shadow-sm" style={{ background: 'linear-gradient(45deg, #FFD700, #FFA500)' }}>
-                        ✨ AI Chef Recipe
-                      </span>
-                    )}
                   </div>
                   <button type="button" className="btn-close" onClick={() => setSelectedRecipe(null)}></button>
                 </div>
@@ -419,7 +414,7 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-              
+
               <div className="modal-body p-4">
                 <img
                   src={getMealImageUrl(selectedRecipe, selectedMealType)}
@@ -449,23 +444,10 @@ export default function Dashboard() {
 
                   <div className="col-md-7 border-start ps-4">
                     <h6 className="fw-bold mb-3 text-uppercase small text-muted">Instructions</h6>
-                    <div 
+                    <div
                       className="small text-secondary"
                       dangerouslySetInnerHTML={{ __html: selectedRecipe.instructions || '<i>No instructions provided.</i>' }}
                     />
-                    
-                    {selectedRecipe.sourceUrl && (
-                      <div className="mt-4 pt-3 border-top">
-                        <a 
-                          href={selectedRecipe.sourceUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="btn btn-sm btn-outline-primary fw-bold"
-                        >
-                          View Original Recipe ↗
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -476,7 +458,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      )}            
+      )}
     </div>
   );
 }
