@@ -6,11 +6,6 @@ import prisma from '../db.js';
 
 const router = express.Router();
 
-/**
- * Rotte di Autenticazione.
- * Gestisce registrazione, login, emissione di token JWT e implementa il rate limiting.
- */
-
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // Finestra temporale di 15 minuti
   max: 10, // Limita ogni indirizzo IP a 10 richieste per finestra per mitigare gli attacchi brute-force
@@ -84,15 +79,15 @@ router.post('/login', authLimiter, async (req, res) => {
 
     // Genera un token JWT contenente ID ed email dell'utente, impostandone la validità a 7 giorni
     const token = jwt.sign(
-      { userId: user.id, email: user.email }, 
-      process.env.JWT_SECRET, 
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET,
       { expiresIn: '7d' } // Durata di validità del token
     );
 
-    res.json({ 
-      message: 'Login successful', 
-      token, 
-      user: { id: user.id, email: user.email } 
+    res.json({
+      message: 'Login successful',
+      token,
+      user: { id: user.id, email: user.email }
     });
   } catch (error) {
     console.error('Login error:', error.message);

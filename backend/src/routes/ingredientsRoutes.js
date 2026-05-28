@@ -12,11 +12,6 @@ const autocompleteLimiter = rateLimit({
   message: { error: 'Too many autocomplete requests. Please try again later.' }
 });
 
-/**
- * Rotte Globali per la Ricerca di Ingredienti.
- * Gestisce query relative agli ingredienti (es. autocompletamento in tempo reale).
- */
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
   model: "gemini-2.5-flash-lite",
@@ -35,7 +30,7 @@ const model = genAI.getGenerativeModel({
 router.get('/autocomplete', requireAuth, autocompleteLimiter, async (req, res) => {
   try {
     const { query } = req.query;
-    
+
     // Previene chiamate API inutili se il prefisso digitato è troppo breve
     if (!query || query.length < 2) {
       return res.json([]);
@@ -63,7 +58,7 @@ Return ONLY the JSON array, no other text.`;
 
       const result = await model.generateContent(prompt);
       const text = result.response.text().trim();
-      
+
       // Analizza la risposta JSON dell'AI, rimuovendo eventuali blocchi di markdown o testo aggiuntivo
       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const suggestions = JSON.parse(cleanJson);
@@ -99,7 +94,7 @@ Return ONLY the JSON array, no other text.`;
             name: { in: namesToFetch }
           }
         });
-        
+
         // Unisce gli array e rimuove i duplicati basandosi sull'ID univoco
         const mergedMap = new Map();
         dbIngredients.forEach(item => mergedMap.set(item.id, item));

@@ -1,9 +1,5 @@
 import { Link } from 'react-router-dom';
 
-/**
- * Home – Landing page principale di PiattoRicco.
- * Mostra i vantaggi dell'app, le funzionalità e un invito all'azione per registrarsi.
- */
 function Home() {
   // Verifica reattiva dello stato di autenticazione per mostrare dinamicamente la Call-to-Action
   const isAuthenticated = !!localStorage.getItem('token');

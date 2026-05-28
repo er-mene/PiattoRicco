@@ -21,12 +21,6 @@ const plannerSwapLimiter = rateLimit({
 });
 
 /**
- * Rotte per il Planner e lo Storico dei Pasti.
- * Gestisce la generazione del piano settimanale tramite l'AI Gemini, la sostituzione delle ricette (swap)
- * e il tracciamento dello storico dei pasti consumati dall'utente.
- */
-
-/**
  * GET /history/:userId
  * Recupera lo storico dei pasti consumati dall'utente.
  * Restituisce solo i pasti contrassegnati come mangiati (isLocked = true), ordinati dal più recente.
@@ -200,7 +194,7 @@ router.post('/generate-single', requireAuth, plannerSwapLimiter, async (req, res
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
     const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    
+
     let recipeData;
     try {
       recipeData = JSON.parse(cleanJson);
@@ -449,12 +443,12 @@ router.post('/generate', requireAuth, plannerGenerateLimiter, async (req, res) =
         if (hasLocked) {
           const yesterday = new Date(today);
           yesterday.setDate(today.getDate() - 1);
-          
+
           await tx.mealPlan.update({
             where: { id: plan.id },
             data: { endDate: yesterday }
           });
-          
+
           await tx.mealPlanEntry.deleteMany({
             where: { mealPlanId: plan.id, isLocked: false }
           });
@@ -560,7 +554,7 @@ router.put('/swap/:entryId', requireAuth, plannerSwapLimiter, async (req, res) =
       console.log("Error: Forbidden or Entry not found");
       return res.status(403).json({ error: 'Forbidden' });
     }
-    
+
 
     const goal = await prisma.nutritionalGoal.findUnique({ where: { userId: currentEntry.mealPlan.userId } });
     const dietaryProfile = await prisma.dietaryProfile.findUnique({ where: { userId: currentEntry.mealPlan.userId } });

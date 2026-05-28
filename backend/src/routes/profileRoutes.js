@@ -4,17 +4,6 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-/**
- * Rotte per Profilo Utente e Obiettivi Nutrizionali.
- * Gestisce il salvataggio e il recupero dei parametri dietetici dell'utente (calorie, macro, allergie e preferenze).
- */
-
-/**
- * POST /
- * Salva o aggiorna il profilo nutrizionale e le preferenze dietetiche dell'utente.
- * Usa operazioni di upsert per creare un nuovo record se mancante, o aggiornarlo se presente.
- * L'ID utente viene recuperato in sicurezza dal token JWT per prevenire manomissioni da parte del client.
- */
 router.post('/', requireAuth, async (req, res) => {
   const userId = req.user.userId;
   const { dailyCalories, dailyProtein, dailyCarbs, dailyFat, excludedIngredients, preferredCuisines, diets } = req.body;
@@ -90,12 +79,12 @@ router.post('/', requireAuth, async (req, res) => {
 router.get('/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Protezione IDOR: verifica che l'utente loggato stia richiedendo i propri dati
     if (userId !== req.user.userId) {
       return res.status(403).json({ error: 'Forbidden: Cannot access other users data' });
     }
-    
+
     // Recupera l'obiettivo nutrizionale dal database
     const goal = await prisma.nutritionalGoal.findUnique({
       where: { userId: userId }
